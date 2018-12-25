@@ -44,6 +44,16 @@ yum install libvirt-client
 * Each OpenNebula Node (or Bridge Node) need to have relevant Host created on 3PAR
 * Host name on 3PAR and OpenNebula Node name (or Bridge Node name) must be same. Name is used for (un)exporting volumes
 * sg3_utils package installed
+* `/etc/multipath.conf` need to have set `user_friendly_names no`, because we use WWNs instead of `mpathx` aliasses
+* `/etc/sudoers.d/opennebula` - add `ONE_3PAR` cmd alias
+
+```
+nano /etc/sudoers.d/opennebula
+...
+Cmnd_Alias ONE_3PAR = /sbin/multipath, /usr/sbin/multipathd, /sbin/dmsetup, /usr/sbin/blockdev, /usr/bin/dd, /usr/bin/tee, /usr/bin/cat /etc/multipath/bindings, /usr/bin/rescan-scsi-bus.sh, /usr/bin/cat /proc/scsi/scsi
+oneadmin ALL=(ALL) NOPASSWD: ONE_MISC, ..., ONE_3PAR, ...
+...
+```
 
 ```bash
 yum install sg3_utils
