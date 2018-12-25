@@ -90,7 +90,7 @@ DISCOVER_CMD=$(cat <<EOF
     # Wait a bit for new mapping
     COUNTER=1
     while [ ! -e \$DEV ] && [ \$COUNTER -le 10 ]; do
-        DEV="/dev/mapper/\`$SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}'\`"
+        DEV="/dev/mapper/3$WWN"
         sleep 1
         COUNTER=\$((\$COUNTER + 1))
     done
@@ -99,7 +99,7 @@ DISCOVER_CMD=$(cat <<EOF
         $(multipath_rescan)
         COUNTER=1
         while [ ! -e "$DEV" ] && [ \$COUNTER -le 10 ]; do
-            DEV="/dev/mapper/\`$SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}'\`"
+            DEV="/dev/mapper/3$WWN"
             sleep 1
             COUNTER=\$((\$COUNTER + 1))
         done

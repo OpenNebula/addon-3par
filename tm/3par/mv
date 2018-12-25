@@ -190,7 +190,7 @@ fi
 if [ "$SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
     FLUSH_CMD=$(cat <<EOF
         set -e
-        DEV="/dev/mapper/\`$SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}'\`"
+        DEV="/dev/mapper/3$WWN"
         DM_HOLDER=\$($BASENAME \`$READLINK \$DEV\`)
         DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
 
@@ -241,7 +241,7 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
         # Wait a bit for new mapping
         COUNTER=1
         while [ ! -e \$DEV ] && [ \$COUNTER -le 10 ]; do
-            DEV="/dev/mapper/\`$SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}'\`"
+            DEV="/dev/mapper/3$WWN"
             sleep 1
             COUNTER=\$((\$COUNTER + 1))
         done
@@ -250,7 +250,7 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
             $(multipath_rescan)
             COUNTER=1
             while [ ! -e "$DEV" ] && [ \$COUNTER -le 10 ]; do
-                DEV="/dev/mapper/\`$SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}'\`"
+                DEV="/dev/mapper/3$WWN"
                 sleep 1
                 COUNTER=\$((\$COUNTER + 1))
             done

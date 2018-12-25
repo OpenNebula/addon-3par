@@ -173,7 +173,7 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
   
   FLUSH_CMD=$(cat <<EOF
       set -e
-      DEV="/dev/mapper/\`$SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}'\`"
+      DEV="/dev/mapper/3$WWN"
       DM_HOLDER=\$($BASENAME \`$READLINK \$DEV\`)
       DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
   
