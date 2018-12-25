@@ -1,0 +1,146 @@
+#!/bin/bash
+
+# -------------------------------------------------------------------------- #
+# Copyright 2018, FeldHost (feldhost.net)                                    #
+#                                                                            #
+# Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+# -------------------------------------------------------------------------- #
+
+###############################################################################
+# This script is used to monitor the free and used space of a datastore
+###############################################################################
+
+# ------------ Set up the environment to source common tools ------------
+
+if [ -z "${ONE_LOCATION}" ]; then
+    LIB_LOCATION=/usr/lib/one
+else
+    LIB_LOCATION=$ONE_LOCATION/lib
+fi
+
+. $LIB_LOCATION/sh/scripts_common.sh
+
+DRIVER_PATH=$(dirname $0)
+source ${DRIVER_PATH}/../../datastore/libfs.sh
+source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
+source ${DRIVER_PATH}/../../datastore/3par/scripts_3par.sh
+
+# -------- Get datastore arguments from OpenNebula core ------------
+
+DRV_ACTION=$1
+ID=$2
+
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb -b $DRV_ACTION"
+
+unset i XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/ID \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE )
+
+CPG="${XPATH_ELEMENTS[0]:-$CPG}"
+DSID="${XPATH_ELEMENTS[1]}"
+NAMING_TYPE="${XPATH_ELEMENTS[2]:-$NAMING_TYPE}"
+
+# ------------ Compute datastore usage -------------
+
+python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD -c $CPG
+
+if [ $? -ne 0 ]; then
+  error_message "Error monitoring CPG"
+  exit 1
+fi
+
+# Get images
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+
+unset i XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(oneimage list -x| $XPATH \
+                    %m%/IMAGE_POOL/IMAGE/VMS/ID)
+
+VMS=($(echo "${XPATH_ELEMENTS[0]}" | tr " " "\n" | sort | uniq))
+
+for VMID in ${VMS[@]}; do
+  VMXML=$(onevm show -x $VMID)
+  
+  echo -n "VM=[ID=$VMID,POLL=\""
+  
+  unset i XPATH_ELEMENTS
+  while IFS= read -r -d '' element; do
+      XPATH_ELEMENTS[i++]="$element"
+  done < <(echo "$VMXML"| $XPATH \
+                      %m%/VM/TEMPLATE/DISK/SOURCE \
+                      %m%/VM/TEMPLATE/DISK/CLONE \
+                      %m%/VM/TEMPLATE/DISK/DISK_ID \
+                      %m%/VM/TEMPLATE/DISK/IMAGE_ID )
+                      
+  SOURCES="${XPATH_ELEMENTS[0]}"
+  CLONES=($(echo "${XPATH_ELEMENTS[1]}"))
+  DISK_IDS=($(echo "${XPATH_ELEMENTS[2]}"))
+  IMAGE_IDS=($(echo "${XPATH_ELEMENTS[3]}"))
+
+  k=0
+  for SOURCE in $SOURCES; do
+    if [ "${CLONES[$k]}" == "YES" ]; then
+      DISK="$NAMING_TYPE.one.vm.$VMID.${DISK_IDS[$k]}.vv"
+    else
+      DISK=$(get_vv_name "$SOURCE")
+    fi
+    
+    diskSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -u $USERNAME \
+                                                                    -p $PASSWORD -n $DISK -t USED)
+
+    if [ $? -ne 0 ]; then
+      error_message "$diskSize"
+      exit 1
+    fi
+
+    echo -n "DISK_SIZE=[ID=${DISK_IDS[$k]},SIZE=${diskSize}] "
+    
+    # snapshots
+    unset i XPATH_ELEMENTS
+    while IFS= read -r -d '' element; do
+        XPATH_ELEMENTS[i++]="$element"
+    done < <(echo "$VMXML"| $XPATH \
+                        %m%/VM/SNAPSHOTS[DISK_ID=${DISK_IDS[$k]}]/SNAPSHOT/ID )
+                        
+    SNAPSHOT_IDS="${XPATH_ELEMENTS[0]}"
+    if [ "$SNAPSHOT_IDS" ]; then
+      for SNAP_ID in $SNAPSHOT_IDS; do
+        SNAP="$DISK.$SNAP_ID"
+        
+        snapSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -u $USERNAME \
+                                                                        -p $PASSWORD -n $SNAP -t SNAP)
+
+        if [ $? -ne 0 ]; then
+          error_message "$snapSize"
+          exit 1
+        fi
+
+        echo -n "SNAPSHOT_SIZE=[ID=${SNAP_ID},DISK_ID=${DISK_IDS[$k]},SIZE=${snapSize}] "
+      done
+    fi
+        
+    let "k++"
+  done
+  
+  echo "\"]"
+  
+done

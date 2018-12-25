@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# -------------------------------------------------------------------------- #
+# Copyright 2018, FeldHost (feldhost.net)                                    #
+#                                                                            #
+# Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+# -------------------------------------------------------------------------- #
+
+###############################################################################
+# This script is used to clone an image
+###############################################################################
+
+# -------- Set up the environment to source common tools & conf ------------
+
+if [ -z "${ONE_LOCATION}" ]; then
+    LIB_LOCATION=/usr/lib/one
+else
+    LIB_LOCATION=$ONE_LOCATION/lib
+fi
+
+. $LIB_LOCATION/sh/scripts_common.sh
+
+DRIVER_PATH=$(dirname $0)
+source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
+
+# -------- Get cp and datastore arguments from OpenNebula core ------------
+
+DRV_ACTION=$1
+ID=$2
+
+XPATH="${DRIVER_PATH}/../xpath.rb -b $DRV_ACTION"
+
+unset i XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/ID \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/THIN \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/DEDUP \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/SIZE \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/CLONING_ID)
+
+DSID="${XPATH_ELEMENTS[0]}"
+CPG="${XPATH_ELEMENTS[1]:-$CPG}"
+THIN="${XPATH_ELEMENTS[2]:-$THIN}"
+DEDUP="${XPATH_ELEMENTS[3]:-$DEDUP}"
+NAMING_TYPE="${XPATH_ELEMENTS[4]:-$NAMING_TYPE}"
+SIZE="${XPATH_ELEMENTS[5]}"
+CLONING_ID="${XPATH_ELEMENTS[6]}"
+
+# Get source image properties
+unset i XPATH_ELEMENTS
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(oneimage show -x $CLONING_ID| $XPATH \
+                    /IMAGE/DATASTORE_ID)
+
+SRC_DSID=${XPATH_ELEMENTS[0]}
+
+# Get source datastore properties
+unset i XPATH_ELEMENTS
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $SRC_DSID| $XPATH \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE)
+
+SRC_NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
+
+# -------- Clone image ------------
+
+python ${DRIVER_PATH}/3par.py cloneVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+                                -snt $SRC_NAMING_TYPE -sid $CLONING_ID -nt $NAMING_TYPE -id $ID \
+                                -tpvv $THIN -tdvv $DEDUP -c $CPG -sz $SIZE

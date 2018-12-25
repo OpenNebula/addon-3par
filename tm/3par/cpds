@@ -1,0 +1,114 @@
+#!/bin/bash
+
+# -------------------------------------------------------------------------- #
+# Copyright 2018, FeldHost (feldhost.net)                                    #
+#                                                                            #
+# Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+# -------------------------------------------------------------------------- #
+
+###############################################################################
+# This script is used to copy an image back to its datastore (executed for the saveas operation) 
+###############################################################################
+
+# mvds host:remote_system_ds/disk.i fe:SOURCE snapid vmid dsid
+#   - fe is the front-end hostname
+#   - SOURCE is the path of the disk image in the form DS_BASE_PATH/disk
+#   - host is the target host to deploy the VM
+#   - remote_system_ds is the path for the system datastore in the host
+#   - vmid is the id of the VM
+#   - dsid is the target datastore (0 is the system datastore)
+#   - snapid is the snapshot id. "-1" for none
+
+# ------------ Set up the environment to source common tools ------------
+
+if [ -z "${ONE_LOCATION}" ]; then
+    TMCOMMON=/var/lib/one/remotes/tm/tm_common.sh
+else
+    TMCOMMON=$ONE_LOCATION/var/remotes/tm/tm_common.sh
+fi
+
+. $TMCOMMON
+
+DRIVER_PATH=$(dirname $0)
+
+source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
+. ${DRIVER_PATH}/../../datastore/3par/scripts_3par.sh
+
+# -------- Get cpds and datastore arguments from OpenNebula core ------------
+
+SRC=$1
+DST=$2
+SNAP_ID=$3
+VMID=$4
+DSID=$5
+
+#-------------------------------------------------------------------------------
+# Get dest ds information
+#-------------------------------------------------------------------------------
+
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+
+unset i XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $DSID| $XPATH \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG)
+
+CPG="${XPATH_ELEMENTS[0]:-$CPG}"
+
+#-------------------------------------------------------------------------------
+# Get Image information
+#-------------------------------------------------------------------------------
+
+DISK_ID=$(basename ${SRC} | cut -d. -f2)
+
+unset i XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onevm show -x $VMID| $XPATH \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
+                    /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
+
+IMAGE_ID="${XPATH_ELEMENTS[0]}"
+CLONE="${XPATH_ELEMENTS[1]}"
+SYS_DSID="${XPATH_ELEMENTS[2]}"
+
+#-------------------------------------------------------------------------------
+# Get system ds information
+#-------------------------------------------------------------------------------
+
+unset i XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $SYS_DSID| $XPATH \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE)
+
+NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
+
+NAME=$(get_vv_name "$DST")
+
+log "Copy disk id $DISK_ID attached on VM $VMID to new disk $NAME"
+
+if [ "$CLONE" != "YES" ]; then
+  DISK_ID=$IMAGE_ID
+  CLONE=0
+fi
+
+python ${DRIVER_PATH}/../../datastore/3par/3par.py copyVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+                                                    -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -d $NAME -c $CPG -vc $CLONE

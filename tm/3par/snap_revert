@@ -1,0 +1,204 @@
+#!/bin/bash
+
+# -------------------------------------------------------------------------- #
+# Copyright 2018, FeldHost (feldhost.net)                                    #
+#                                                                            #
+# Portions copyright 2014-2016, Laurent Grawet <dev@grawet.be>               #
+# Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
+#                                                                            #
+# Licensed under the Apache License, Version 2.0 (the "License"); you may    #
+# not use this file except in compliance with the License. You may obtain    #
+# a copy of the License at                                                   #
+#                                                                            #
+# http://www.apache.org/licenses/LICENSE-2.0                                 #
+#                                                                            #
+# Unless required by applicable law or agreed to in writing, software        #
+# distributed under the License is distributed on an "AS IS" BASIS,          #
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.   #
+# See the License for the specific language governing permissions and        #
+# limitations under the License.                                             #
+# -------------------------------------------------------------------------- #
+
+# snap_revert host:parent_image snap_id vmid ds_id
+
+SRC=$1
+SNAP_ID=$2
+VMID=$3
+DSID=$4
+
+if [ -z "${ONE_LOCATION}" ]; then
+    TMCOMMON=/var/lib/one/remotes/tm/tm_common.sh
+    DATASTORES=/var/lib/one/datastores
+else
+    TMCOMMON=$ONE_LOCATION/var/remotes/tm/tm_common.sh
+    DATASTORES=$ONE_LOCATION/var/datastores
+fi
+
+DRIVER_PATH=$(dirname $0)
+
+source $TMCOMMON
+source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
+. ${DRIVER_PATH}/../../datastore/3par/scripts_3par.sh
+
+SRC_PATH=$(arg_path $SRC)
+SRC_HOST=$(arg_host $SRC)
+
+#-------------------------------------------------------------------------------
+# Get Image information
+#-------------------------------------------------------------------------------
+
+DISK_ID=$(basename ${SRC} | cut -d. -f2)
+
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onevm show -x $VMID| $XPATH \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
+                    /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID \
+                    /VM/DEPLOY_ID)
+
+IMAGE_ID="${XPATH_ELEMENTS[j++]}"
+NAME_WWN="${XPATH_ELEMENTS[j++]}"
+CLONE="${XPATH_ELEMENTS[j++]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
+DEPLOY_ID="${XPATH_ELEMENTS[j++]}"
+
+if [ "$CLONE" != "YES" ]; then
+  DISK_ID=$IMAGE_ID
+  CLONE=0
+fi
+
+#-------------------------------------------------------------------------------
+# Get system ds information
+#-------------------------------------------------------------------------------
+
+unset i XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $SYS_DSID| $XPATH \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE)
+
+NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
+
+# We need to unexport volume, revert snapshot and them export volume back
+
+# If it is not readonly, need to get non-persistent VM disk
+# Readonly is for ex. CDROM and no copy is created
+if [ "$CLONE" == "YES" ]; then
+  # get VM disk WWN
+  NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -u $USERNAME \
+                                                                -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
+
+  if [ $? -ne 0 ]; then
+    error_message "$NAME_WWN"
+    exit 1
+  fi
+fi
+
+NAME=$(get_vv_name "$NAME_WWN")
+WWN=$(get_vv_wwn "$NAME_WWN")
+
+# Flush and unexport
+FLUSH_CMD=$(cat <<EOF
+    set -e
+    DEV="/dev/mapper/\`$SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}'\`"
+    DM_HOLDER=\$($BASENAME \`$READLINK \$DEV\`)
+    DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
+
+    $(multipath_flush "\$DEV")
+
+    unset device 
+    for device in \${DM_SLAVE}
+    do 
+        $SUDO $BLOCKDEV --flushbufs /dev/\${device}
+        echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
+    done
+EOF
+)
+
+log "Unmapping $WWN from $SRC_HOST"
+
+ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
+    "Error flushing out mapping"
+
+python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+                                                        -n $NAME -hs $SRC_HOST
+
+if [ $? -ne 0 ]; then
+  error_message "Error unexporting VV"
+  exit 1
+fi
+
+# revert snapshot
+log "Reverting snapshot $SNAP_ID"
+python ${DRIVER_PATH}/../../datastore/3par/3par.py revertSnapshot -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+                                                        -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID -vc $CLONE
+
+if [ $? -ne 0 ]; then
+  error_message "Error promoting snapshot back to VV"
+  exit 1
+fi
+
+# exportVV back and discover
+log "Mapping $NAME_WWN to $SRC_HOST"
+
+LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+                                                        -n $NAME -hs $SRC_HOST)
+
+if [ $? -ne 0 ]; then
+  error_message "$LUN"
+  exit 1
+fi
+
+DISCOVER_CMD=$(cat <<EOF
+    set -e
+    $(rescan_scsi_bus "$LUN")
+    $(multipath_rescan)
+
+    DEV="/dev/mapper/nonexistent"
+
+    # Wait a bit for new mapping
+    COUNTER=1
+    while [ ! -e \$DEV ] && [ \$COUNTER -le 10 ]; do
+        DEV="/dev/mapper/\`$SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}'\`"
+        sleep 1
+        COUNTER=\$((\$COUNTER + 1))
+    done
+    if [ ! -e \$DEV ]; then
+        # Last chance to get our mapping
+        $(multipath_rescan)
+        COUNTER=1
+        while [ ! -e "$DEV" ] && [ \$COUNTER -le 10 ]; do
+            DEV="/dev/mapper/\`$SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}'\`"
+            sleep 1
+            COUNTER=\$((\$COUNTER + 1))
+        done
+    fi
+    # Exit with error if mapping does not exist
+    if [ ! -e \$DEV ]; then
+        exit 1
+    fi
+    
+    DM_HOLDER=dm-\$($SUDO $DMSETUP info -c --noheadings "\$DEV" | $AWK -F: '{print \$3}')
+    DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
+    # Wait a bit for mapping's paths
+    COUNTER=1
+    while [ ! "\${DM_SLAVE}" ] && [ \$COUNTER -le 10 ]; do
+        sleep 1
+        COUNTER=\$((\$COUNTER + 1))
+    done
+    # Exit with error if mapping has no path
+    if [ ! "\${DM_SLAVE}" ]; then
+        exit 1
+    fi
+EOF
+)
+
+ssh_exec_and_log "$SRC_HOST" "$DISCOVER_CMD" \
+    "Error registering $NAME_WWN to $SRC_HOST"
