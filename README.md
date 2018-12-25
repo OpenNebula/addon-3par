@@ -79,6 +79,7 @@ Support standard OpenNebula datastore operations:
 ## ToDo
 
 1. Pre/Post migrate scripts
+1. Disk size monitoring
 1. Configuration of API endpoint and auth in datastore template
 1. Sunstone integration
 
