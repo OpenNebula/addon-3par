@@ -112,18 +112,19 @@ while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
-                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/READONLY \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
 NAME_WWN="${XPATH_ELEMENTS[0]}"
-READONLY="${XPATH_ELEMENTS[1]}"
-PERSISTENT="${XPATH_ELEMENTS[2]}"
-SYS_DSID="${XPATH_ELEMENTS[3]}"
+IMAGE_ID="${XPATH_ELEMENTS[1]}"
+CLONE="${XPATH_ELEMENTS[2]}"
+PERSISTENT="${XPATH_ELEMENTS[3]}"
+SYS_DSID="${XPATH_ELEMENTS[4]}"
 
-# If it is not readonly, need to get non-persistent VM disk
-# Readonly is for ex. CDROM and no copy is created, so we just unmap original disk
-if [ "$READONLY" != "YES" ] && [ "$PERSISTENT" != "YES" ]; then
+# Disk os clone, so copy was created
+if [ "$CLONE" == "YES" ]; then
   #-------------------------------------------------------------------------------
   # Get system ds information
   #-------------------------------------------------------------------------------
@@ -170,9 +171,23 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Readonly disk can be used at the same time by more VMs, so we can't unexport it without checking for usage
-# TODO: Implement cheking
-if [ "$SRC_HOST_3PAR" == "1" ] && [ "$READONLY" != "YES" ]; then
+# Not persistent and not clone, so this disk can be used by more VMs at the same time
+CAN_UNMAP=1
+if [ "$PERSISTENT" != "YES" ] && [ "$CLONE" == "NO" ]; then
+    # check if disk is in use by other VMs
+    unset i XPATH_ELEMENTS
+
+    while IFS= read -r -d '' element; do
+        XPATH_ELEMENTS[i++]="$element"
+    done < <(oneimage show -x $IMAGE_ID| $XPATH /IMAGE/RUNNING_VMS)
+
+    RUNNING_VMS="${XPATH_ELEMENTS[0]}"
+
+    # image is used, so can't unmap
+    [ "$RUNNING_VMS" != "1" ] && CAN_UNMAP=0
+fi
+
+if [ "$SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
     FLUSH_CMD=$(cat <<EOF
         set -e
         DEV="/dev/mapper/\`$SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}'\`"

@@ -103,20 +103,33 @@ while IFS= read -r -d '' element; do
 done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
-                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/READONLY \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
 NAME_WWN="${XPATH_ELEMENTS[0]}"
 PERSISTENT="${XPATH_ELEMENTS[1]}"
-READONLY="${XPATH_ELEMENTS[2]}"
-SYS_DSID="${XPATH_ELEMENTS[3]}"
+CLONE="${XPATH_ELEMENTS[2]}"
+IMAGE_ID="${XPATH_ELEMENTS[3]}"
+SYS_DSID="${XPATH_ELEMENTS[4]}"
 
 # Exit if persistent
 [ "$PERSISTENT" == "YES" ] && exit 0
 
-# Readonly disk can be used at the same time by more VMs, so we can't unexportVV it without checking for usage
-# TODO: Implement cheking
-[ "$READONLY" == "YES" ] && exit 0
+# Not persistent and not clone, so this disk can be used by more VMs at the same time
+if [ "$CLONE" == "NO" ]; then
+    # check if disk is in use by other VMs
+    unset i XPATH_ELEMENTS
+
+    while IFS= read -r -d '' element; do
+        XPATH_ELEMENTS[i++]="$element"
+    done < <(oneimage show -x $IMAGE_ID| $XPATH /IMAGE/RUNNING_VMS)
+
+    RUNNING_VMS="${XPATH_ELEMENTS[0]}"
+
+    # image is used, so exit
+    [ "$RUNNING_VMS" != "1" ] && exit 0
+fi
 
 DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -u $USERNAME \
                                                                         -p $PASSWORD -hs $DST_HOST)
@@ -131,7 +144,7 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
   # Unmap non-persistent image from host
   #-------------------------------------------------------------------------------
   
-  if [ "$READONLY" != "YES" ]; then
+  if [ "$CLONE" == "YES" ]; then
     #-------------------------------------------------------------------------------
     # Get system ds information
     #-------------------------------------------------------------------------------
@@ -189,11 +202,11 @@ EOF
   fi
 fi
 
-# Exit if readonly
-[ "$READONLY" == "YES" ] && exit 0
+# Exit if not clone
+[ "$CLONE" == "NO" ] && exit 0
 
 #-------------------------------------------------------------------------------
-# Delete non-persistent image
+# Delete non-persistent image copy
 #-------------------------------------------------------------------------------
 
 python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVmClone -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
