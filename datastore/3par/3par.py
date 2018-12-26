@@ -55,6 +55,7 @@ createVVParser.add_argument('-sz', '--size', help='Size of VV in MiB', type=int,
 createVVParser.add_argument('-tpvv', '--tpvv', help='Thin provision', type=boolarg, default=True)
 createVVParser.add_argument('-tdvv', '--tdvv', help='Thin provision with deduplication', type=boolarg, default=False)
 createVVParser.add_argument('-c', '--cpg', help='CPG Name', required=True)
+createVVParser.add_argument('-co', '--comment', help='Comment')
 
 # DeleteVV task parser
 deleteVVParser = subparsers.add_parser('deleteVV', parents=[commonParser], help='Delete VV')
@@ -74,6 +75,7 @@ cloneVVParser.add_argument('-c', '--cpg', help='Destination VV CPG Name', requir
 cloneVVParser.add_argument('-tpvv', '--tpvv', help='Destination VV thin provision', type=boolarg, default=True)
 cloneVVParser.add_argument('-tdvv', '--tdvv', help='Destination VV thin provision with deduplication', type=boolarg,
                            default=False)
+cloneVVParser.add_argument('-co', '--comment', help='Comment')
 
 # CopyVV task parser
 copyVVParser = subparsers.add_parser('copyVV', parents=[commonParser], help='Copy specific VV to another one')
@@ -118,6 +120,7 @@ createVmCloneParser.add_argument('-sz', '--size', help='Size of destination VV i
 createVmCloneParser.add_argument('-c', '--cpg', help='Destination VV CPG Name', required=True)
 createVmCloneParser.add_argument('-tpvv', '--tpvv', help='Thin provision', type=boolarg, default=True)
 createVmCloneParser.add_argument('-tdvv', '--tdvv', help='Thin provision with deduplication', type=boolarg, default=False)
+createVmCloneParser.add_argument('-co', '--comment', help='Comment')
 
 # GetVmClone task parser
 getVmCloneParser = subparsers.add_parser('getVmClone', parents=[commonParser], help='Get VM Clone VV name and wwn')
@@ -392,10 +395,13 @@ def createVVWithName(cl, name, args):
 
     optional = {'snapCPG': cpgName}
     if args.tpvv == True:
-        optional = {'tpvv': True, 'snapCPG': cpgName}
+        optional['tpvv'] = True
 
     if args.tdvv == True:
-        optional = {'tdvv': True, 'snapCPG': cpgName}
+        optional['tdvv'] = True
+
+    if args.comment:
+        optional['comment'] = args.comment
 
     cl.createVolume(name, cpgName, args.size, optional)
 

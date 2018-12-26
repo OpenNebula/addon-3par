@@ -51,6 +51,7 @@ done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/ID \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/THIN \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/DEDUP \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/NAME \
                     /DS_DRIVER_ACTION_DATA/IMAGE/SIZE \
                     /DS_DRIVER_ACTION_DATA/IMAGE/CLONING_ID)
 
@@ -59,8 +60,9 @@ CPG="${XPATH_ELEMENTS[1]:-$CPG}"
 THIN="${XPATH_ELEMENTS[2]:-$THIN}"
 DEDUP="${XPATH_ELEMENTS[3]:-$DEDUP}"
 NAMING_TYPE="${XPATH_ELEMENTS[4]:-$NAMING_TYPE}"
-SIZE="${XPATH_ELEMENTS[5]}"
-CLONING_ID="${XPATH_ELEMENTS[6]}"
+NAME="${XPATH_ELEMENTS[5]}"
+SIZE="${XPATH_ELEMENTS[6]}"
+CLONING_ID="${XPATH_ELEMENTS[7]}"
 
 # Get source image properties
 unset i XPATH_ELEMENTS
@@ -85,4 +87,4 @@ SRC_NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
 
 python ${DRIVER_PATH}/3par.py cloneVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
                                 -snt $SRC_NAMING_TYPE -sid $CLONING_ID -nt $NAMING_TYPE -id $ID \
-                                -tpvv $THIN -tdvv $DEDUP -c $CPG -sz $SIZE
+                                -tpvv $THIN -tdvv $DEDUP -c $CPG -sz $SIZE -co $NAME

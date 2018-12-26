@@ -91,9 +91,11 @@ unset i j XPATH_ELEMENTS
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onevm show -x $VMID| $XPATH \
+                    /VM/NAME \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SIZE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/ORIGINAL_SIZE)
 
+VM_NAME="${XPATH_ELEMENTS[j++]}"
 SIZE="${XPATH_ELEMENTS[j++]}"
 ORIGINAL_SIZE="${XPATH_ELEMENTS[j++]}"
 
@@ -103,7 +105,7 @@ ORIGINAL_SIZE="${XPATH_ELEMENTS[j++]}"
 
 NEW_NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createVmClone -a $API_ENDPOINT -i $IP -u $USERNAME \
                                                             -p $PASSWORD -nt $NAMING_TYPE -tpvv $THIN -tdvv $DEDUP \
-                                                            -sn $NAME -vi $VMID -id $DISK_ID -c $CPG -sz $SIZE)
+                                                            -sn $NAME -vi $VMID -id $DISK_ID -c $CPG -sz $SIZE -co $VM_NAME)
 
 if [ $? -ne 0 ]; then
   error_message "$NEW_NAME_WWN"
