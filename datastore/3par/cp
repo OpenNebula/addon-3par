@@ -241,7 +241,7 @@ log "Unmapping $WWN from $DST_HOST"
 
 FLUSH_CMD=$(cat <<EOF
     set -e
-    DEV=\$($SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}')
+    DEV="3$WWN"
     DM_HOLDER=dm-\$($SUDO $DMSETUP info -c --noheadings /dev/mapper/\${DEV} | $AWK -F: '{print \$3}')
     DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
 

@@ -139,7 +139,7 @@ fi
 
 RESCAN_CMD=$(cat <<EOF
     set -e
-    DEV=\$($SUDO cat /etc/multipath/bindings | grep "3$WWN" | $AWK '{print \$1}')
+    DEV="3$WWN"
 
     $(rescan_scsi_bus "$LUN" "force")
     $(multipath_resize "\$DEV")
