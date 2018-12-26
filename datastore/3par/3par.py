@@ -212,7 +212,7 @@ def cloneVV(cl, args):
     cl.copyVolume(srcName, destName, args.cpg)
 
     wwn = vv.get('wwn').lower()
-    print '{name}:{wwn}'.format(name=name, wwn=wwn)
+    print '{name}:{wwn}'.format(name=destName, wwn=wwn)
 
 def copyVV(cl, args):
   if args.vmClone == True:
