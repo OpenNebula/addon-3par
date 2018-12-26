@@ -74,6 +74,7 @@ Support standard OpenNebula datastore operations:
 
 1. Tested only with KVM hypervisor
 1. When SYSTEM datastore is in use the reported free/used/total space is the space on 3PAR CPG. (On the host filesystem there are mostly symlinks and small files that do not require much disk space)
+1. No support for volatile disks, because SYSTEM datastore must be FILE type by design, so it is impossible to use volatile disks as block devices.
 1. Tested/confirmed working on CentOS 7 (Frontend) and Fedora 29 (Nodes).
 
 ## ToDo
