@@ -68,10 +68,10 @@ unset i XPATH_ELEMENTS
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onedatastore show -x $DSID| $XPATH \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/THIN \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/DEDUP \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE)
+                    /DATASTORE/TEMPLATE/CPG \
+                    /DATASTORE/TEMPLATE/THIN \
+                    /DATASTORE/TEMPLATE/DEDUP \
+                    /DATASTORE/TEMPLATE/NAMING_TYPE)
 
 CPG="${XPATH_ELEMENTS[0]:-$CPG}"
 THIN="${XPATH_ELEMENTS[1]:-$THIN}"

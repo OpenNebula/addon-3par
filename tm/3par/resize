@@ -86,8 +86,7 @@ if [ "$PERSISTENT" != "YES" ]; then
   
   while IFS= read -r -d '' element; do
       XPATH_ELEMENTS[i++]="$element"
-  done < <(onedatastore show -x $SYS_DSID| $XPATH \
-                      /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE)
+  done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
   
   NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
 

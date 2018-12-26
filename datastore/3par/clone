@@ -77,8 +77,7 @@ unset i XPATH_ELEMENTS
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SRC_DSID| $XPATH \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE)
+done < <(onedatastore show -x $SRC_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
 
 SRC_NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
 
