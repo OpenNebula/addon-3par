@@ -171,5 +171,7 @@ DISCOVER_CMD=$(cat <<EOF
 EOF
 )
 
+ssh_make_path $DST_HOST $DST_DIR
+
 ssh_exec_and_log "$DST_HOST" "$DISCOVER_CMD" \
     "Error registering $NEW_NAME_WWN to $DST_HOST"

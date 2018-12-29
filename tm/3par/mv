@@ -78,7 +78,7 @@ if [ `lcm_state` -eq 60 ]; then
 fi
 
 if [ `is_disk $DST_PATH` -eq 0 ]; then
-    ssh_make_path "$DST_HOST" "$DST_DIR" "ssh"
+    ssh_make_path "$DST_HOST" "$DST_DIR"
 
     log "Moving $SRC to $DST"
     
