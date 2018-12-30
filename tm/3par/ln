@@ -66,8 +66,73 @@ DST_HOST=`arg_host $DST`
 DST_DIR=`dirname $DST_PATH`
 
 #-------------------------------------------------------------------------------
+# Get Image information
+#-------------------------------------------------------------------------------
+
+DISK_ID=$(basename ${DST_PATH} | cut -d. -f2)
+
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onevm show -x $VMID | $XPATH /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID)
+
+SRC_DSID="${XPATH_ELEMENTS[j++]}"
+
+#-------------------------------------------------------------------------------
+# Get dest ds information
+#-------------------------------------------------------------------------------
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
+
+NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+
+#-------------------------------------------------------------------------------
+# Get src ds information
+#-------------------------------------------------------------------------------
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $SRC_DSID | $XPATH \
+                                /DATASTORE/TEMPLATE/QOS_ENABLE \
+                                /DATASTORE/TEMPLATE/QOS_PRIORITY \
+                                /DATASTORE/TEMPLATE/QOS_MAX_IOPS \
+                                /DATASTORE/TEMPLATE/QOS_MIN_IOPS \
+                                /DATASTORE/TEMPLATE/QOS_MAX_BW \
+                                /DATASTORE/TEMPLATE/QOS_MIN_BW \
+                                /DATASTORE/TEMPLATE/QOS_LATENCY)
+
+QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
+QOS_PRIORITY="${XPATH_ELEMENTS[j++]:-$QOS_PRIORITY}"
+QOS_MAX_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MAX_IOPS}"
+QOS_MIN_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MIN_IOPS}"
+QOS_MAX_BW="${XPATH_ELEMENTS[j++]:-$QOS_MAX_BW}"
+QOS_MIN_BW="${XPATH_ELEMENTS[j++]:-$QOS_MIN_BW}"
+QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
+
+#-------------------------------------------------------------------------------
 # Start actions
 #-------------------------------------------------------------------------------
+
+if [ "$QOS_ENABLE" == "YES" ]; then
+    log "Create QoS Policy"
+    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicyVVSet -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+                        -nt $NAMING_TYPE -n $NAME -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS \
+                        -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY)
+
+    if [ $? -ne 0 ]; then
+      error_message "$QOS"
+      exit 1
+    fi
+fi
 
 log "Mapping $SRC to $DST_HOST"
 

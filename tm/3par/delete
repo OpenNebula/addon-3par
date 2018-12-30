@@ -44,7 +44,7 @@ DRIVER_PATH=$(dirname $0)
 source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 . ${DRIVER_PATH}/../../datastore/3par/scripts_3par.sh
 
-# -------- Get mvds and datastore arguments from OpenNebula core ------------
+# -------- Get delete and datastore arguments from OpenNebula core ------------
 
 DST=$1
 
@@ -131,6 +131,21 @@ if [ "$CLONE" == "NO" ]; then
     [ "$RUNNING_VMS" != "1" ] && exit 0
 fi
 
+#-------------------------------------------------------------------------------
+# Get image ds information
+#-------------------------------------------------------------------------------
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+  XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $DSID | $XPATH \
+                        /DATASTORE/TEMPLATE/NAMING_TYPE \
+                        /DATASTORE/TEMPLATE/QOS_ENABLE)
+
+NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
+
 DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -u $USERNAME \
                                                                         -p $PASSWORD -hs $DST_HOST)
 
@@ -143,19 +158,22 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
   #-------------------------------------------------------------------------------
   # Unmap non-persistent image from host
   #-------------------------------------------------------------------------------
-  
+
   if [ "$CLONE" == "YES" ]; then
     #-------------------------------------------------------------------------------
     # Get system ds information
     #-------------------------------------------------------------------------------
     
-    unset i XPATH_ELEMENTS
+    unset i j XPATH_ELEMENTS
     
     while IFS= read -r -d '' element; do
         XPATH_ELEMENTS[i++]="$element"
-    done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
+    done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                                /DATASTORE/TEMPLATE/NAMING_TYPE \
+                                /DATASTORE/TEMPLATE/QOS_ENABLE)
     
-    NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
+    NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+    QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
   
     # get VM disk WWN
     NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -u $USERNAME \
@@ -197,6 +215,17 @@ EOF
 
   if [ $? -ne 0 ]; then
     error_message "Error unexporting VV"
+    exit 1
+  fi
+fi
+
+if [ "$QOS_ENABLE" == "YES" ]; then
+  log "Delete QoS Policy"
+  QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteQosPolicyVVSet -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+                    -nt $NAMING_TYPE -n $NAME -vi $VMID)
+
+  if [ $? -ne 0 ]; then
+    error_message "$QOS"
     exit 1
   fi
 fi

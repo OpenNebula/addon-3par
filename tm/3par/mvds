@@ -73,6 +73,23 @@ fi
 [ "$SRC_HOST_3PAR" != "1" ] && exit 0
 
 #-------------------------------------------------------------------------------
+# Get target ds information
+#-------------------------------------------------------------------------------
+
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $DSID | $XPATH \
+                        /DATASTORE/TEMPLATE/NAMING_TYPE \
+                        /DATASTORE/TEMPLATE/QOS_ENABLE)
+
+NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
+
+#-------------------------------------------------------------------------------
 # Unmap image from host
 #-------------------------------------------------------------------------------
 
@@ -100,3 +117,14 @@ ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
 
 python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
                                                         -n $NAME -hs $SRC_HOST
+
+if [ "$QOS_ENABLE" == "YES" ]; then
+    log "Delete QoS Policy"
+    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteQosPolicyVVSet -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+                        -nt $NAMING_TYPE -n $NAME -vi $VMID)
+
+    if [ $? -ne 0 ]; then
+      error_message "$QOS"
+      exit 1
+    fi
+fi

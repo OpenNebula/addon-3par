@@ -61,13 +61,15 @@ yum install sg3_utils
 
 ## Features
 Support standard OpenNebula datastore operations:
+
 * datastore configuration via CLI
 * all Datastore MAD(DATASTORE_MAD) and Transfer Manager MAD(TM_MAD) functionality
 * SYSTEM datastore
 * support migration from one to another SYSTEM datastore if both are with `3par` TM_MAD
-* TRIM/discard in the VM when virtio-scsi driver is in use (require `DEVICE_PREFIX=sd` and `DISCARD=unmap`)
-* disk images can be thin provisioned RAW block devices
+* TRIM/discard in the VM when virtio-scsi driver is in use (require `DEV_PREFIX=sd` and `DISCARD=unmap`)
+* disk images can be thin [deduplicated] provisioned RAW block devices
 * support different 3PAR CPGs as separate datastores
+* support for 3PAR Priority Optimization Policy (QoS)
 * live VM snapshots
 
 ## Limitations
@@ -79,7 +81,6 @@ Support standard OpenNebula datastore operations:
 
 ## ToDo
 
-1. QoS - Disk I/O Throttling
 1. Pre/Post migrate scripts
 1. Configuration of API endpoint and auth in datastore template
 1. Sunstone integration
@@ -198,15 +199,55 @@ Some configuration attributes must be set to enable a datastore as 3PAR enabled 
 * **TM_MAD**: [mandatory] Transfer driver for the datastore. String, use value `3par`
 * **DISK_TYPE**: [mandatory for IMAGE datastores] Type for the VM disks using images from this datastore. String, use value `block`
 * **CPG**: [mandatory] Name of Common Provisioning Group created on 3PAR. String
-* **THIN**: Use thin volumes `tpvv` or no. By default enabled. Int 0|1
-* **DEDUP**: Use deduplicated thin volumes `tdvv` or no. By default disabled. Int 0|1
+* **THIN**: Use thin volumes `tpvv` or no. By default enabled. Int `0|1`
+* **DEDUP**: Use deduplicated thin volumes `tdvv` or no. By default disabled. Int `0|1`
 * **NAMING_TYPE**: Part of volume name defining environment. By default `dev`. String (1)
 * **BRIDGE_LIST**: Nodes to use for image datastore operations. String (2)
+* **QOS_ENABLE**: Enable QoS. `YES|NO` (3)
+* **QOS_PRIORITY**: QoS Priority. `HIGH|NORMAL|LOW` (4)
+* **QOS_MAX\_IOPS**: QoS Max IOPS. Int (5)
+* **QOS_MIN\_IOPS**: QoS Min IOPS. Int (6)
+* **QOS_MAX\_BW**: QoS Man bandwidth in kB/s. Int (7)
+* **QOS_MIN\_BW**: QoS Min bandwidth in kB/s. Int (8)
+* **QOS_LATENCY**: QoS Latency goal in ms. Int (9)
 
 1. Volume names are created according to best practices naming conventions.
    `<TYPE>` part - can be prd for production servers, dev for development servers, tst for test servers, etc.
    Volume name will be `<TYPE>.one.<IMAGE_ID>.vv` for ex. `dev.one.1.vv` or `tst.one.3.vv`
+   
 2. Quoted, space separated list of server hostnames which are Hosts on the 3PAR System.
+
+3. QoS Rules - Applied per VM, so if VM have multiple disks, them QoS policy applies to all VM disks
+   - minimum goals and maximum limits are shared.
+   Persistent disks use `QOS_*` attributes from IMAGE datastore.
+   Non-Persistent disks use `QOS_*` attributes from target SYSTEM datastore.
+
+4. QoS Priority - Determines the sequence for throttling policies to meet latency goals.
+   High priority should be used for critical applications, lower priority should be used for less critical applications.
+   The priority will be ignored if the system does not have policies with a latency goal and minimum goal.
+
+5. The maximum IOPS permitted for the virtual volumes associated with the policy.
+   The IOPS maximum limit must be between 0 and 2 147 483 647 IO/s.
+
+6. If IOPS fall below this minimum goal, then IOPS will not be throttled (reduced) for the virtual volumes
+   associated with the policy. If a minimum goal is set for IOPS, then a maximum limit must also be set for IOPS.
+   The minimum goal will be ignored if the system does not have policies with a latency goal set.
+   The IOPS minimum goal must be between 0 and 2 147 483 647 IO/s.
+
+7. The maximum bandwidth permitted for the virtual volumes associated with the policy. The maximum limit does not have
+   dependencies on the other optimization settings.
+   The bandwidth maximum limit must be between 0 and 9 007 199 254 740 991 KB/s.
+
+8. If bandwidth falls below this minimum goal, then bandwidth will not be throttled (reduced) for the virtual volumes
+   associated with the policy. If a minimum goal is set for bandwidth, then a maximum limit must also be set
+   for bandwidth. The minimum goal will be ignored if the system does not have policies with a latency goal set.
+   The bandwidth minimum goal must be between 0 and 9 007 199 254 740 991 KB/s.
+
+9. Service time that the system will attempt to achieve for the virtual volumes associated with the policy.
+   A latency goal requires the system to have other policies with a minimum goal specified so that the latency goal
+   algorithm knows which policies to throttle. The sequence in which these will be throttled is set
+   by priority (low priority is throttled first).
+   The latency goal must be between 0,50 and 10 000,00 ms.
 
 The following example illustrates the creation of a 3PAR datastore.
 The datastore will use hosts `tst.lin.fedora1.host`, `tst.lin.fedora2.host` and `tst.lin.fedora3.host` for importing and creating images.
@@ -224,6 +265,7 @@ DISK_TYPE = "block"
 CPG = "SSD_r6"
 NAMING_TYPE = "tst"
 BRIDGE_LIST = "tst.lin.fedora1.host tst.lin.fedora2.host tst.lin.fedora3.host"
+QOS_ENABLE = "YES"
 EOF
 
 # Create datastore
@@ -249,6 +291,7 @@ TM_MAD = "3par"
 TYPE = "SYSTEM_DS"
 CPG = "SSD_r6"
 NAMING_TYPE = "tst"
+QOS_ENABLE = "YES"
 _EOF_
 
 # Create datastore

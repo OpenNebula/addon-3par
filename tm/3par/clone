@@ -63,7 +63,7 @@ DST_DIR=`dirname $DST_PATH`
 
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
@@ -71,12 +71,26 @@ done < <(onedatastore show -x $DSID| $XPATH \
                     /DATASTORE/TEMPLATE/CPG \
                     /DATASTORE/TEMPLATE/THIN \
                     /DATASTORE/TEMPLATE/DEDUP \
-                    /DATASTORE/TEMPLATE/NAMING_TYPE)
+                    /DATASTORE/TEMPLATE/NAMING_TYPE \
+                    /DATASTORE/TEMPLATE/QOS_ENABLE \
+                    /DATASTORE/TEMPLATE/QOS_PRIORITY \
+                    /DATASTORE/TEMPLATE/QOS_MAX_IOPS \
+                    /DATASTORE/TEMPLATE/QOS_MIN_IOPS \
+                    /DATASTORE/TEMPLATE/QOS_MAX_BW \
+                    /DATASTORE/TEMPLATE/QOS_MIN_BW \
+                    /DATASTORE/TEMPLATE/QOS_LATENCY)
 
-CPG="${XPATH_ELEMENTS[0]:-$CPG}"
-THIN="${XPATH_ELEMENTS[1]:-$THIN}"
-DEDUP="${XPATH_ELEMENTS[2]:-$DEDUP}"
-NAMING_TYPE="${XPATH_ELEMENTS[3]:-$NAMING_TYPE}"
+CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
+THIN="${XPATH_ELEMENTS[j++]:-$THIN}"
+DEDUP="${XPATH_ELEMENTS[j++]:-$DEDUP}"
+NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
+QOS_PRIORITY="${XPATH_ELEMENTS[j++]:-$QOS_PRIORITY}"
+QOS_MAX_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MAX_IOPS}"
+QOS_MIN_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MIN_IOPS}"
+QOS_MAX_BW="${XPATH_ELEMENTS[j++]:-$QOS_MAX_BW}"
+QOS_MIN_BW="${XPATH_ELEMENTS[j++]:-$QOS_MIN_BW}"
+QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
 
 #-------------------------------------------------------------------------------
 # Get Image information
@@ -114,6 +128,18 @@ fi
 
 NEW_NAME=$(get_vv_name "$NEW_NAME_WWN")
 NEW_WWN=$(get_vv_wwn "$NEW_NAME_WWN")
+
+if [ "$QOS_ENABLE" == "YES" ]; then
+    log "Create QoS Policy"
+    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicyVVSet -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+                        -nt $NAMING_TYPE -n $NEW_NAME -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS \
+                        -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY)
+
+    if [ $? -ne 0 ]; then
+      error_message "$QOS"
+      exit 1
+    fi
+fi
 
 log "Mapping $NEW_NAME_WWN to $DST_HOST"
 
