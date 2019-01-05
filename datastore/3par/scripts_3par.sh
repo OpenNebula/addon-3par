@@ -1,5 +1,5 @@
 # -------------------------------------------------------------------------- #
-# Copyright 2018, FeldHost (feldhost.net)                                    #
+# Copyright 2019, FeldHost™ (feldhost.net)                                    #
 #                                                                            #
 # Portions copyright 2014-2016, Laurent Grawet <dev@grawet.be>               #
 #                                                                            #

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -------------------------------------------------------------------------- #
-# Copyright 2018, FeldHost (feldhost.net)                                    #
+# Copyright 2019, FeldHost™ (feldhost.net)                                    #
 #                                                                            #
 # Portions copyright 2015-2018, Storpool (storpool.com)                      #
 #                                                                            #
