@@ -277,7 +277,7 @@ def exportVV(cl, args):
                 cl.createVLUN(name, None, host, None, None, None, True)
                 vlun = cl.getVLUN(name)
                 done = True
-            except exceptions.HTTPConflict as ex:
+            except exceptions.HTTPConflict:
                 time.sleep(5)
 
     print vlun.get('lun')
@@ -301,7 +301,21 @@ def createVmClone(cl, args):
     vv = createVVWithName(cl, destName, args)
 
     # copy volume
-    cl.copyVolume(args.srcName, destName, args.cpg)
+    done = False
+    i = 0
+    while not done:
+        try:
+            cl.copyVolume(args.srcName, destName, args.cpg)
+            done = True
+        except exceptions.HTTPConflict as ex:
+            # failed after 5 tries, revert, exit
+            if i > 5:
+                cl.deleteVolume(destName)
+                cl.logout()
+                print ex
+                exit(1)
+            i += 1
+            time.sleep(1)
 
     # print info
     wwn = vv.get('wwn').lower()
