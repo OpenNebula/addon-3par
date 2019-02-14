@@ -13,7 +13,7 @@ More info:
 * [How to Contribute](http://opennebula.org/addons/contribute/)
 * Support: [OpenNebula user forum](https://forum.opennebula.org/c/support)
 * Development: [OpenNebula developers forum](https://forum.opennebula.org/c/development)
-* Issues Tracking: GitHub issues (https://github.com/FELDSAM-INC/one-addon-3par/issues)
+* Issues Tracking: GitHub issues (https://gitlab.feldhost.cz/feldhost/one-addon-3par/issues)
 
 ## Authors
 
@@ -92,7 +92,7 @@ The installation instructions are for OpenNebula 5.6+.
 ### Get the addon from github
 ```bash
 cd ~
-git clone https://github.com/FELDSAM-INC/one-addon-3par
+git clone git@gitlab.feldhost.cz:feldhost/one-addon-3par.git
 ```
 
 ### Automated installation
