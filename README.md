@@ -33,10 +33,9 @@ This add-on is developed and tested with OpenNebula 5.6.1 and 3PAR OS 3.2.2.612 
 * libvirt-client package installed
 
 ```bash
-yum install python-setuptools
+yum install python-setuptools libvirt-client
 easy_install pip
 pip install python-3parclient
-yum install libvirt-client
 ```
 
 ### OpenNebula Node (or Bridge Node)
