@@ -74,6 +74,7 @@ echo -n "*** 3par.conf "
 if [ -f "${ONE_VAR}/remotes/etc/datastore/3par/3par.conf" ]; then
     echo "(found)"
 else
+    mkdir "${ONE_VAR}/remotes/etc/datastore/3par"
     cp $CP_ARG etc/datastore/3par/3par.conf "${ONE_VAR}/remotes/etc/datastore/3par/3par.conf"
 fi
 
