@@ -179,7 +179,7 @@ LIVE_DISK_SNAPSHOTS="kvm-qcow2 kvm-ceph kvm-3par"
 ### Post-install
 * Restart `opennebula` service
 ```bash
-service opennebula restart
+systemtl restart opennebula
 ```
 * As oneadmin user (re)sync the remote scripts
 ```bash
@@ -285,14 +285,14 @@ $ onedatastore list
 
 ```bash
 # create datastore configuration file
-$ cat >/tmp/ds.conf <<_EOF_
+$ cat >/tmp/ds.conf <<EOF
 NAME = "3PAR SYSTEM"
 TM_MAD = "3par"
 TYPE = "SYSTEM_DS"
 CPG = "SSD_r6"
 NAMING_TYPE = "tst"
 QOS_ENABLE = "YES"
-_EOF_
+EOF
 
 # Create datastore
 $ onedatastore create /tmp/ds.conf
