@@ -71,7 +71,8 @@ done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/BASE_PATH \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/THIN \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/DEDUP \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE \
-                    /DS_DRIVER_ACTION_DATA/IMAGE/SIZE)
+                    /DS_DRIVER_ACTION_DATA/IMAGE/SIZE \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/NAME)
 
 unset i
 
@@ -94,6 +95,7 @@ THIN="${XPATH_ELEMENTS[i++]:-$THIN}"
 DEDUP="${XPATH_ELEMENTS[i++]:-$DEDUP}"
 NAMING_TYPE="${XPATH_ELEMENTS[i++]:-$NAMING_TYPE}"
 SIZE="${XPATH_ELEMENTS[i++]:-0}"
+IMAGE_NAME="${XPATH_ELEMENTS[i++]:-0}"
 
 DST_HOST=`get_destination_host $ID`
 
@@ -136,7 +138,7 @@ multiline_exec_and_log "set -e -o pipefail; $DUMP | $SSH $DST_HOST $DD of=$TMP_D
 
 # Create image
 NAME_WWN=$(python ${DRIVER_PATH}/3par.py createVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
-                                            -tpvv $THIN -tdvv $DEDUP -id $ID -c $CPG -sz $SIZE)
+                                            -tpvv $THIN -tdvv $DEDUP -id $ID -c $CPG -sz $SIZE -co "$IMAGE_NAME")
 
 if [ $? -ne 0 ]; then
   error_message "$NAME_WWN"
