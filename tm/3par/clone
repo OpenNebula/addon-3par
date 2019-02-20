@@ -119,7 +119,7 @@ ORIGINAL_SIZE="${XPATH_ELEMENTS[j++]}"
 
 NEW_NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createVmClone -a $API_ENDPOINT -i $IP -u $USERNAME \
                                                             -p $PASSWORD -nt $NAMING_TYPE -tpvv $THIN -tdvv $DEDUP \
-                                                            -sn $NAME -vi $VMID -id $DISK_ID -c $CPG -sz $SIZE -co $VM_NAME)
+                                                            -sn $NAME -vi $VMID -id $DISK_ID -c $CPG -sz $SIZE -co "$VM_NAME")
 
 if [ $? -ne 0 ]; then
   error_message "$NEW_NAME_WWN"
@@ -133,7 +133,7 @@ if [ "$QOS_ENABLE" == "YES" ]; then
     log "Create QoS Policy"
     QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicyVVSet -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
                         -nt $NAMING_TYPE -n $NEW_NAME -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS \
-                        -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY)
+                        -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY -co "$VM_NAME")
 
     if [ $? -ne 0 ]; then
       error_message "$QOS"

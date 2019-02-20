@@ -87,4 +87,4 @@ SRC_NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
 
 python ${DRIVER_PATH}/3par.py cloneVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
                                 -snt $SRC_NAMING_TYPE -sid $CLONING_ID -nt $NAMING_TYPE -id $ID \
-                                -tpvv $THIN -tdvv $DEDUP -c $CPG -sz $SIZE -co $NAME
+                                -tpvv $THIN -tdvv $DEDUP -c $CPG -sz $SIZE -co "$NAME"
