@@ -508,7 +508,7 @@ def createVVWithName(cl, name, args):
     if args.tdvv == True:
         optional['tdvv'] = True
 
-    if args.compr == True:
+    if args.compression == True:
         optional['compression'] = True
 
     if args.comment:
