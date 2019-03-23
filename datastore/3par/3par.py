@@ -55,6 +55,7 @@ createVVParser.add_argument('-id', '--id', help='ID of VV to use in VV name', re
 createVVParser.add_argument('-sz', '--size', help='Size of VV in MiB', type=int, required=True)
 createVVParser.add_argument('-tpvv', '--tpvv', help='Thin provision', type=boolarg, default=True)
 createVVParser.add_argument('-tdvv', '--tdvv', help='Thin provision with deduplication', type=boolarg, default=False)
+createVVParser.add_argument('-compr', '--compression', help='Thin provision compressed volume', type=boolarg, default=False)
 createVVParser.add_argument('-c', '--cpg', help='CPG Name', required=True)
 createVVParser.add_argument('-co', '--comment', help='Comment')
 
@@ -76,6 +77,7 @@ cloneVVParser.add_argument('-c', '--cpg', help='Destination VV CPG Name', requir
 cloneVVParser.add_argument('-tpvv', '--tpvv', help='Destination VV thin provision', type=boolarg, default=True)
 cloneVVParser.add_argument('-tdvv', '--tdvv', help='Destination VV thin provision with deduplication', type=boolarg,
                            default=False)
+cloneVVParser.add_argument('-compr', '--compression', help='Thin provision compressed volume', type=boolarg, default=False)
 cloneVVParser.add_argument('-co', '--comment', help='Comment')
 
 # CopyVV task parser
@@ -121,6 +123,7 @@ createVmCloneParser.add_argument('-sz', '--size', help='Size of destination VV i
 createVmCloneParser.add_argument('-c', '--cpg', help='Destination VV CPG Name', required=True)
 createVmCloneParser.add_argument('-tpvv', '--tpvv', help='Thin provision', type=boolarg, default=True)
 createVmCloneParser.add_argument('-tdvv', '--tdvv', help='Thin provision with deduplication', type=boolarg, default=False)
+createVmCloneParser.add_argument('-compr', '--compression', help='Thin provision compressed volume', type=boolarg, default=False)
 createVmCloneParser.add_argument('-co', '--comment', help='Comment')
 
 # GetVmClone task parser
@@ -499,11 +502,14 @@ def createVVWithName(cl, name, args):
     cpgName = args.cpg
 
     optional = {'snapCPG': cpgName}
-    if args.tpvv == True:
+    if args.tpvv == True and args.tdvv != True and args.compr != True:
         optional['tpvv'] = True
 
     if args.tdvv == True:
         optional['tdvv'] = True
+
+    if args.compr == True:
+        optional['compression'] = True
 
     if args.comment:
         optional['comment'] = args.comment

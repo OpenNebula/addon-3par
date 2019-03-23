@@ -201,6 +201,7 @@ Some configuration attributes must be set to enable a datastore as 3PAR enabled 
 * **CPG**: [mandatory] Name of Common Provisioning Group created on 3PAR. String
 * **THIN**: Use thin volumes `tpvv` or no. By default enabled. Int `0|1`
 * **DEDUP**: Use deduplicated thin volumes `tdvv` or no. By default disabled. Int `0|1`
+* **COMPRESSION**: Use compressed thin volumes or no. By default disabled. Int `0|1`
 * **NAMING_TYPE**: Part of volume name defining environment. By default `dev`. String (1)
 * **BRIDGE_LIST**: Nodes to use for image datastore operations. String (2)
 * **QOS_ENABLE**: Enable QoS. `YES|NO` (3)

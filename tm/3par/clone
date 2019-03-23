@@ -71,6 +71,7 @@ done < <(onedatastore show -x $DSID| $XPATH \
                     /DATASTORE/TEMPLATE/CPG \
                     /DATASTORE/TEMPLATE/THIN \
                     /DATASTORE/TEMPLATE/DEDUP \
+                    /DATASTORE/TEMPLATE/COMPRESSION \
                     /DATASTORE/TEMPLATE/NAMING_TYPE \
                     /DATASTORE/TEMPLATE/QOS_ENABLE \
                     /DATASTORE/TEMPLATE/QOS_PRIORITY \
@@ -83,6 +84,7 @@ done < <(onedatastore show -x $DSID| $XPATH \
 CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
 THIN="${XPATH_ELEMENTS[j++]:-$THIN}"
 DEDUP="${XPATH_ELEMENTS[j++]:-$DEDUP}"
+COMPRESSION="${XPATH_ELEMENTS[j++]:-$COMPRESSION}"
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 QOS_PRIORITY="${XPATH_ELEMENTS[j++]:-$QOS_PRIORITY}"
@@ -118,8 +120,8 @@ ORIGINAL_SIZE="${XPATH_ELEMENTS[j++]}"
 #-------------------------------------------------------------------------------
 
 NEW_NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createVmClone -a $API_ENDPOINT -i $IP -u $USERNAME \
-                                                            -p $PASSWORD -nt $NAMING_TYPE -tpvv $THIN -tdvv $DEDUP \
-                                                            -sn $NAME -vi $VMID -id $DISK_ID -c $CPG -sz $SIZE -co "$VM_NAME")
+                                -p $PASSWORD -nt $NAMING_TYPE -tpvv $THIN -tdvv $DEDUP -compr $COMPRESSION -sn $NAME \
+                                -vi $VMID -id $DISK_ID -c $CPG -sz $SIZE -co "$VM_NAME")
 
 if [ $? -ne 0 ]; then
   error_message "$NEW_NAME_WWN"

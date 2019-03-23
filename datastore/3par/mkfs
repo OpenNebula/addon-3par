@@ -49,18 +49,22 @@ while IFS= read -r -d '' element; do
 done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/THIN \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/DEDUP \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/COMPRESSION \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE \
                     /DS_DRIVER_ACTION_DATA/IMAGE/NAME \
                     /DS_DRIVER_ACTION_DATA/IMAGE/SIZE)
 
-CPG="${XPATH_ELEMENTS[0]:-$CPG}"
-THIN="${XPATH_ELEMENTS[1]:-$THIN}"
-DEDUP="${XPATH_ELEMENTS[2]:-$DEDUP}"
-NAMING_TYPE="${XPATH_ELEMENTS[3]:-$NAMING_TYPE}"
-NAME="${XPATH_ELEMENTS[4]}"
-SIZE="${XPATH_ELEMENTS[5]:-0}"
+unset i
+
+CPG="${XPATH_ELEMENTS[i++]:-$CPG}"
+THIN="${XPATH_ELEMENTS[i++]:-$THIN}"
+DEDUP="${XPATH_ELEMENTS[i++]:-$DEDUP}"
+COMPRESSION="${XPATH_ELEMENTS[i++]:-$COMPRESSION}"
+NAMING_TYPE="${XPATH_ELEMENTS[i++]:-$NAMING_TYPE}"
+NAME="${XPATH_ELEMENTS[i++]}"
+SIZE="${XPATH_ELEMENTS[i++]:-0}"
 
 # ------------ Create image -------------
 
 python ${DRIVER_PATH}/3par.py createVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
-                                    -tpvv $THIN -tdvv $DEDUP -id $ID -c $CPG -sz $SIZE -co "$NAME"
+                                    -tpvv $THIN -tdvv $DEDUP -compr $COMPRESSION -id $ID -c $CPG -sz $SIZE -co "$NAME"
