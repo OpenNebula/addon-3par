@@ -502,7 +502,7 @@ def createVVWithName(cl, name, args):
     cpgName = args.cpg
 
     optional = {'snapCPG': cpgName}
-    if args.tpvv == True and args.tdvv != True and args.compr != True:
+    if args.tpvv == True and args.tdvv != True and args.compression != True:
         optional['tpvv'] = True
 
     if args.tdvv == True:
