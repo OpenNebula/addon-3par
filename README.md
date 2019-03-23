@@ -199,9 +199,9 @@ Some configuration attributes must be set to enable a datastore as 3PAR enabled 
 * **TM_MAD**: [mandatory] Transfer driver for the datastore. String, use value `3par`
 * **DISK_TYPE**: [mandatory for IMAGE datastores] Type for the VM disks using images from this datastore. String, use value `block`
 * **CPG**: [mandatory] Name of Common Provisioning Group created on 3PAR. String
-* **THIN**: Use thin volumes `tpvv` or no. By default enabled. Int `0|1`
-* **DEDUP**: Use deduplicated thin volumes `tdvv` or no. By default disabled. Int `0|1`
-* **COMPRESSION**: Use compressed thin volumes or no. By default disabled. Int `0|1`
+* **THIN**: Use thin volumes `tpvv` or no. By default enabled. Int `YES|NO`
+* **DEDUP**: Use deduplicated thin volumes `tdvv` or no. By default disabled. Int `YES|NO`
+* **COMPRESSION**: Use compressed thin volumes or no. By default disabled. Int `YES|NO`
 * **NAMING_TYPE**: Part of volume name defining environment. By default `dev`. String (1)
 * **BRIDGE_LIST**: Nodes to use for image datastore operations. String (2)
 * **QOS_ENABLE**: Enable QoS. `YES|NO` (3)
