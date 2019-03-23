@@ -124,7 +124,7 @@ QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
 
 if [ "$QOS_ENABLE" == "YES" ]; then
     log "Create QoS Policy"
-    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicyVVSet -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicyVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                         -nt $NAMING_TYPE -n $NAME -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS \
                         -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY)
 
@@ -136,7 +136,7 @@ fi
 
 log "Mapping $SRC to $DST_HOST"
 
-LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                                 -n $NAME -hs $DST_HOST)
 
 if [ $? -ne 0 ]; then

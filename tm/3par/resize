@@ -91,7 +91,7 @@ if [ "$PERSISTENT" != "YES" ]; then
   NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
 
   # get VM disk WWN
-  NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -u $USERNAME \
+  NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                 -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
 
   if [ $? -ne 0 ]; then
@@ -103,7 +103,7 @@ fi
 NAME=$(get_vv_name "$NAME_WWN")
 WWN=$(get_vv_wwn "$NAME_WWN")
 
-CURRENT_SIZE=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -u $USERNAME \
+CURRENT_SIZE=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                     -p $PASSWORD -n $NAME -t VSIZE)
 
 if [ $? -ne 0 ]; then
@@ -119,7 +119,7 @@ GROW_SIZE=`expr $SIZE - $CURRENT_SIZE`
 log "Resizing disk $NAME by $GROW_SIZE MB"
 
 # resize volume itself
-python ${DRIVER_PATH}/../../datastore/3par/3par.py growVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD -n $NAME \
+python ${DRIVER_PATH}/../../datastore/3par/3par.py growVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME \
                                                         -gb $GROW_SIZE
 
 if [ $? -ne 0 ]; then
@@ -128,7 +128,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # rescan scsi bus and resize multipath device
-LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                             -n $NAME -hs $SRC_HOST)
 
 if [ $? -ne 0 ]; then

@@ -56,5 +56,5 @@ unset i
 SNAP_ID="${XPATH_ELEMENTS[i++]}"
 NAMING_TYPE="${XPATH_ELEMENTS[i++]:-$NAMING_TYPE}"
 
-python ${DRIVER_PATH}/3par.py deleteSnapshot -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
+python ${DRIVER_PATH}/3par.py deleteSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
                                     -id $ID -si $SNAP_ID

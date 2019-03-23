@@ -84,5 +84,5 @@ done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE
 
 NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py createSnapshot -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+python ${DRIVER_PATH}/../../datastore/3par/3par.py createSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                         -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID -vc $CLONE

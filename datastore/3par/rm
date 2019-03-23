@@ -42,4 +42,4 @@ ID=$2
 
 # ------------ Delete image -------------
 
-python ${DRIVER_PATH}/3par.py deleteVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $ID
+python ${DRIVER_PATH}/3par.py deleteVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $ID

@@ -91,7 +91,7 @@ NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
 # Readonly is for ex. CDROM and no copy is created
 if [ "$CLONE" == "YES" ]; then
   # get VM disk WWN
-  NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -u $USERNAME \
+  NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                 -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
 
   if [ $? -ne 0 ]; then
@@ -126,7 +126,7 @@ log "Unmapping $WWN from $SRC_HOST"
 ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
     "Error flushing out mapping"
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                         -n $NAME -hs $SRC_HOST
 
 if [ $? -ne 0 ]; then
@@ -136,7 +136,7 @@ fi
 
 # revert snapshot
 log "Reverting snapshot $SNAP_ID"
-python ${DRIVER_PATH}/../../datastore/3par/3par.py revertSnapshot -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+python ${DRIVER_PATH}/../../datastore/3par/3par.py revertSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                         -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID -vc $CLONE
 
 if [ $? -ne 0 ]; then
@@ -147,7 +147,7 @@ fi
 # exportVV back and discover
 log "Mapping $NAME_WWN to $SRC_HOST"
 
-LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                         -n $NAME -hs $SRC_HOST)
 
 if [ $? -ne 0 ]; then

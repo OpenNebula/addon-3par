@@ -146,7 +146,7 @@ done < <(onedatastore show -x $DSID | $XPATH \
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
-DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -u $USERNAME \
+DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                         -p $PASSWORD -hs $DST_HOST)
 
 if [ $? -ne 0 ]; then
@@ -176,7 +176,7 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
     QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
   
     # get VM disk WWN
-    NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -u $USERNAME \
+    NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                 -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
 
     if [ $? -ne 0 ]; then
@@ -210,7 +210,7 @@ EOF
   ssh_exec_and_log "$DST_HOST" "$FLUSH_CMD" \
       "Error flushing out mapping"
   
-  python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+  python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                         -n $NAME -hs $DST_HOST
 
   if [ $? -ne 0 ]; then
@@ -221,7 +221,7 @@ fi
 
 if [ "$QOS_ENABLE" == "YES" ]; then
   log "Delete QoS Policy"
-  QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteQosPolicyVVSet -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+  QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteQosPolicyVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                     -nt $NAMING_TYPE -n $NAME -vi $VMID)
 
   if [ $? -ne 0 ]; then
@@ -237,5 +237,5 @@ fi
 # Delete non-persistent image copy
 #-------------------------------------------------------------------------------
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVmClone -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                             -nt $NAMING_TYPE -vi $VMID -id $DISK_ID

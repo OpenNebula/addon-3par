@@ -138,7 +138,7 @@ if [ "$CLONE" == "YES" ]; then
   NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
   
   # get VM disk WWN
-  NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -u $USERNAME \
+  NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                 -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
 
   if [ $? -ne 0 ]; then
@@ -154,7 +154,7 @@ WWN=$(get_vv_wwn "$NAME_WWN")
 # Start actions
 #-------------------------------------------------------------------------------
 
-SRC_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -u $USERNAME \
+SRC_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                         -p $PASSWORD -hs $SRC_HOST)
 
 if [ $? -ne 0 ]; then
@@ -162,7 +162,7 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -u $USERNAME \
+DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                         -p $PASSWORD -hs $DST_HOST)
 
 if [ $? -ne 0 ]; then
@@ -209,7 +209,7 @@ EOF
     ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
         "Error flushing out mapping"
 
-    python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+    python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                                 -n $NAME -hs $SRC_HOST
 
     if [ $? -ne 0 ]; then
@@ -221,7 +221,7 @@ fi
 if [ "$DST_HOST_3PAR" == "1" ]; then
     log "Mapping $NAME_WWN to $DST_HOST"
 
-    LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+    LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                                 -n $NAME -hs $DST_HOST)
 
     if [ $? -ne 0 ]; then

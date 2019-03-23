@@ -58,7 +58,7 @@ NAMING_TYPE="${XPATH_ELEMENTS[2]:-$NAMING_TYPE}"
 
 # ------------ Compute datastore usage -------------
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD -c $CPG
+python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -c $CPG
 
 if [ $? -ne 0 ]; then
   error_message "Error monitoring CPG"
@@ -104,7 +104,7 @@ for VMID in ${VMS[@]}; do
       DISK=$(get_vv_name "$SOURCE")
     fi
     
-    diskSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -u $USERNAME \
+    diskSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                     -p $PASSWORD -n $DISK -t USED)
 
     if [ $? -ne 0 ]; then
@@ -126,7 +126,7 @@ for VMID in ${VMS[@]}; do
       for SNAP_ID in $SNAPSHOT_IDS; do
         SNAP="$DISK.$SNAP_ID"
         
-        snapSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -u $USERNAME \
+        snapSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                         -p $PASSWORD -n $SNAP -t SNAP)
 
         if [ $? -ne 0 ]; then

@@ -54,4 +54,4 @@ CPG="${XPATH_ELEMENTS[0]:-$CPG}"
 
 # ------------ Compute datastore usage -------------
 
-python ${DRIVER_PATH}/3par.py monitorCPG -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD -c $CPG
+python ${DRIVER_PATH}/3par.py monitorCPG -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -c $CPG

@@ -108,5 +108,5 @@ if [ "$CLONE" != "YES" ]; then
   CLONE=0
 fi
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py copyVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD \
+python ${DRIVER_PATH}/../../datastore/3par/3par.py copyVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                     -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -d $NAME -c $CPG -vc $CLONE

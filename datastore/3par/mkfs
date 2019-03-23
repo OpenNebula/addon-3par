@@ -66,5 +66,5 @@ SIZE="${XPATH_ELEMENTS[i++]:-0}"
 
 # ------------ Create image -------------
 
-python ${DRIVER_PATH}/3par.py createVV -a $API_ENDPOINT -i $IP -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
+python ${DRIVER_PATH}/3par.py createVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
                                     -tpvv $THIN -tdvv $DEDUP -compr $COMPRESSION -id $ID -c $CPG -sz $SIZE -co "$NAME"
