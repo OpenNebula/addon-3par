@@ -128,7 +128,7 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
 
             # get VM disk WWN
             NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                        -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
+                                                                        -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $j)
 
             if [ $? -ne 0 ]; then
               error_message "$NAME_WWN"
