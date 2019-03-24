@@ -274,20 +274,21 @@ def exportVV(cl, args):
     host = args.host
 
     # check if VLUN already exists
-    try:
-        vlun = cl.getVLUN(name)
-    except exceptions.HTTPNotFound as ex:
-        # create VLUN
-        done = False
-        while not done:
-            try:
-                cl.createVLUN(name, None, host, None, None, None, True)
-                vlun = cl.getVLUN(name)
-                done = True
-            except exceptions.HTTPConflict:
-                time.sleep(5)
+    vluns = cl.getHostVLUNs(host)
+    for vlun in vluns:
+        if vlun.get('volumeName') == name:
+            print vlun.get('lun')
+            return
 
-    print vlun.get('lun')
+    # create VLUN
+    done = False
+    while not done:
+        try:
+            location = cl.createVLUN(name, None, host, None, None, None, True)
+            print location.split(',')[1]
+            return
+        except exceptions.HTTPConflict:
+            time.sleep(5)
 
 def unexportVV(cl, args):
     name = args.name
