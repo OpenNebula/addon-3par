@@ -18,6 +18,9 @@
 from hpe3parclient import client, exceptions
 import argparse
 import time
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ----------------------------
 # Define parser and subparsers
