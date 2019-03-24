@@ -88,6 +88,7 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
                         /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/CLONE \
                         /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/READONLY \
                         /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/IMAGE_ID \
+                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/DISK_ID \
                         /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
     NAME_WWN=${XPATH_ELEMENTS[k++]}
@@ -95,6 +96,7 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
     CLONE=${XPATH_ELEMENTS[k++]}
     READONLY=${XPATH_ELEMENTS[k++]}
     IMAGE_ID=${XPATH_ELEMENTS[k++]}
+    DISK_ID=${XPATH_ELEMENTS[k++]}
     SYS_DSID=${XPATH_ELEMENTS[k++]}
 
     # Readonly and not clone, so this disk can be used by more VMs at the same time
@@ -128,7 +130,7 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
 
             # get VM disk WWN
             NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                        -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $j)
+                                                                        -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
 
             if [ $? -ne 0 ]; then
               error_message "$NAME_WWN"
