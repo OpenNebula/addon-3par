@@ -84,12 +84,58 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
     while IFS= read -r -d '' element; do
         XPATH_ELEMENTS[i++]="$element"
     done < <($XPATH     /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/SOURCE \
-                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/TM_MAD)
+                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/TM_MAD \
+                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/CLONE \
+                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/READONLY \
+                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/IMAGE_ID \
+                        /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-    NAME_WWN=disk.${XPATH_ELEMENTS[k++]}
+    NAME_WWN=${XPATH_ELEMENTS[k++]}
     TM_MAD=${XPATH_ELEMENTS[k++]}
+    CLONE=${XPATH_ELEMENTS[k++]}
+    READONLY=${XPATH_ELEMENTS[k++]}
+    IMAGE_ID=${XPATH_ELEMENTS[k++]}
+    SYS_DSID=${XPATH_ELEMENTS[k++]}
+
+    # Readonly and not clone, so this disk can be used by more VMs at the same time
+    if [ "$CLONE" == "NO" ] && [ "$READONLY" == "YES" ]; then
+        # check if disk is in use by other VMs
+        unset i XPATH_ELEMENTS
+
+        while IFS= read -r -d '' element; do
+            XPATH_ELEMENTS[i++]="$element"
+        done < <(oneimage show -x $IMAGE_ID| $XPATH /IMAGE/RUNNING_VMS)
+
+        RUNNING_VMS="${XPATH_ELEMENTS[0]}"
+
+        # image is used, so exit
+        [ "$RUNNING_VMS" != "1" ] && exit 0
+    fi
 
     if [ "$TM_MAD" = "3par" ]; then
+        if [ "$CLONE" == "YES" ]; then
+            #-------------------------------------------------------------------------------
+            # Get system ds information
+            #-------------------------------------------------------------------------------
+
+            unset i j XPATH_ELEMENTS
+
+            while IFS= read -r -d '' element; do
+                XPATH_ELEMENTS[i++]="$element"
+            done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
+
+            NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+
+            # get VM disk WWN
+            NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
+                                                                        -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
+
+            if [ $? -ne 0 ]; then
+              error_message "$NAME_WWN"
+              exit 1
+            fi
+        fi
+
         NAME=$(get_vv_name "$NAME_WWN")
         WWN=$(get_vv_wwn "$NAME_WWN")
 
