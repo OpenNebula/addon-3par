@@ -92,13 +92,12 @@ if [ -f "$ONE_VAR/remotes/VERSION" ]; then
 fi
 OIFS=$IFS
 IFS='.'
-ONE_VERSION=($ONE_VER)
 IFS=$OIFS
 
 if [ -f "scripts/install-${ONE_VER}.sh" ]; then
     source "scripts/install-${ONE_VER}.sh"
 else
-    echo "ERROR: Unknown OpenNebula version '$ONE_VERSION' detected!"
+    echo "ERROR: Unknown OpenNebula version '$ONE_VER' detected!"
     echo "Please install manually"
     echo
 fi
