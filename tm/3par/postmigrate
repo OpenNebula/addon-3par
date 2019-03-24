@@ -107,8 +107,8 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
                   $SUDO $BLOCKDEV --flushbufs /dev/\${device}
                   echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
               done
-        EOF
-        )
+EOF
+)
 
         log "Unmapping $NAME_WWN from $SRC_HOST"
 

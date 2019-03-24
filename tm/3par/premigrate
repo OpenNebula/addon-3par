@@ -169,8 +169,8 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
                 exit 1
             fi
             ln -sf "\$DEV" "$DST_PATH"
-        EOF
-        )
+EOF
+)
 
         ssh_exec_and_log "$DST_HOST" "$DISCOVER_CMD" \
             "Error registering $NAME_WWN to $DST_HOST"
