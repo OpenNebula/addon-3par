@@ -77,7 +77,7 @@ while read line; do
 done < <(onevm show $VMID --all | $GREP -w "DISK_ID" | $CUT -d\" -f2)
 
 for j in `seq 1 ${#DISK_IDS[*]}`; do
-    XPATH="${DRIVER_PATH}/../../datastore/xpath.rb -b $TEMPLATE"
+    XPATH="${DRIVER_PATH}/../../datastore/xpath.rb -b $TEMPLATE_64"
 
     unset i k XPATH_ELEMENTS
 
