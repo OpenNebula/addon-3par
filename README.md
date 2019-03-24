@@ -22,6 +22,7 @@ More info:
 ## Compatibility
 
 This add-on is developed and tested with OpenNebula 5.6.1 and 3PAR OS 3.2.2.612 (MU4)+P51,P56,P59,P94,P98,P102,P106,P113,P118,P127
+Tested also on OpenNebula 5.8 and 3PAR OS 3.3.1.410 (MU2)+P32,P34,P36,P37,P39,P40,P41,P42,P45,P48
 
 ## Requirements
 
@@ -67,10 +68,11 @@ Support standard OpenNebula datastore operations:
 * SYSTEM datastore
 * support migration from one to another SYSTEM datastore if both are with `3par` TM_MAD
 * TRIM/discard in the VM when virtio-scsi driver is in use (require `DEV_PREFIX=sd` and `DISCARD=unmap`)
-* disk images can be thin [deduplicated] provisioned RAW block devices
+* disk images can be full provisioned, thin provisioned, thin deduplicated, thin compressed or thin deduplicated and compressed RAW block devices
 * support different 3PAR CPGs as separate datastores
 * support for 3PAR Priority Optimization Policy (QoS)
 * live VM snapshots
+* live VM migrations
 
 ## Limitations
 
@@ -81,7 +83,6 @@ Support standard OpenNebula datastore operations:
 
 ## ToDo
 
-1. Pre/Post migrate scripts
 1. Configuration of API endpoint and auth in datastore template
 1. Sunstone integration
 
@@ -199,9 +200,9 @@ Some configuration attributes must be set to enable a datastore as 3PAR enabled 
 * **TM_MAD**: [mandatory] Transfer driver for the datastore. String, use value `3par`
 * **DISK_TYPE**: [mandatory for IMAGE datastores] Type for the VM disks using images from this datastore. String, use value `block`
 * **CPG**: [mandatory] Name of Common Provisioning Group created on 3PAR. String
-* **THIN**: Use thin volumes `tpvv` or no. By default enabled. Int `YES|NO`
-* **DEDUP**: Use deduplicated thin volumes `tdvv` or no. By default disabled. Int `YES|NO`
-* **COMPRESSION**: Use compressed thin volumes or no. By default disabled. Int `YES|NO`
+* **THIN**: Use thin volumes `tpvv` or no. By default enabled. `YES|NO`
+* **DEDUP**: Use deduplicated thin volumes `tdvv` or no. By default disabled. `YES|NO`
+* **COMPRESSION**: Use compressed thin volumes or no. By default disabled. `YES|NO`
 * **NAMING_TYPE**: Part of volume name defining environment. By default `dev`. String (1)
 * **BRIDGE_LIST**: Nodes to use for image datastore operations. String (2)
 * **QOS_ENABLE**: Enable QoS. `YES|NO` (3)
