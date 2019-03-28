@@ -199,8 +199,10 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
       unset device 
       for device in \${DM_SLAVE}
       do 
-          $SUDO $BLOCKDEV --flushbufs /dev/\${device}
-          echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
+          if [ -e /dev/\${device} ]; then
+              $SUDO $BLOCKDEV --flushbufs /dev/\${device}
+              echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
+          fi
       done
 EOF
 )
