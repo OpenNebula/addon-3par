@@ -147,45 +147,7 @@ fi
 DISCOVER_CMD=$(cat <<EOF
     set -e
     mkdir -p "$DST_DIR"
-    $(rescan_scsi_bus "$LUN")
-    $(multipath_rescan)
-
-    DEV="/dev/mapper/nonexistent"
-
-    # Wait a bit for new mapping
-    COUNTER=1
-    while [ ! -e \$DEV ] && [ \$COUNTER -le 10 ]; do
-        DEV="/dev/mapper/3$WWN"
-        sleep 1
-        COUNTER=\$((\$COUNTER + 1))
-    done
-    if [ ! -e \$DEV ]; then
-        # Last chance to get our mapping
-        $(multipath_rescan)
-        COUNTER=1
-        while [ ! -e "$DEV" ] && [ \$COUNTER -le 10 ]; do
-            DEV="/dev/mapper/3$WWN"
-            sleep 1
-            COUNTER=\$((\$COUNTER + 1))
-        done
-    fi
-    # Exit with error if mapping does not exist
-    if [ ! -e \$DEV ]; then
-        exit 1
-    fi
-    
-    DM_HOLDER=\$($BASENAME \`$READLINK \$DEV\`)
-    DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
-    # Wait a bit for mapping's paths
-    COUNTER=1
-    while [ ! "\${DM_SLAVE}" ] && [ \$COUNTER -le 10 ]; do
-        sleep 1
-        COUNTER=\$((\$COUNTER + 1))
-    done
-    # Exit with error if mapping has no path
-    if [ ! "\${DM_SLAVE}" ]; then
-        exit 1
-    fi
+    $(discover_lun "$LUN" "$WWN")
     ln -sf "\$DEV" "$DST_PATH"
 EOF
 )

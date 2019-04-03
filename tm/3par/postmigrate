@@ -143,20 +143,7 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
 
         FLUSH_CMD=$(cat <<EOF
               set -e
-              DEV="/dev/mapper/3$WWN"
-              DM_HOLDER=\$($BASENAME \`$READLINK \$DEV\`)
-              DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
-
-              $(multipath_flush "\$DEV")
-
-              unset device
-              for device in \${DM_SLAVE}
-              do
-                  if [ -e /dev/\${device} ]; then
-                      $SUDO $BLOCKDEV --flushbufs /dev/\${device}
-                      echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
-                  fi
-              done
+              $(remove_lun "$WWN")
 EOF
 )
 

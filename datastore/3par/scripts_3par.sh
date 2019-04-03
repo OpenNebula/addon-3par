@@ -1,3 +1,4 @@
+#@IgnoreInspection BashAddShebang
 # -------------------------------------------------------------------------- #
 # Copyright 2019, FeldHost™ (feldhost.net)                                   #
 #                                                                            #
@@ -59,4 +60,71 @@ function get_vv_wwn {
   local NAME_WWN
   NAME_WWN="$1"
   echo "$NAME_WWN" | $AWK -F: '{print $2}'
+}
+
+function discover_lun {
+    local LUN
+    local WWN
+    LUN="$1"
+    WWN="$2"
+    cat <<EOF
+        $(rescan_scsi_bus "$LUN")
+        $(multipath_rescan)
+
+        DEV="/dev/mapper/3$WWN"
+
+        # Wait a bit for new mapping
+        COUNTER=1
+        while [ ! -e \$DEV ] && [ \$COUNTER -le 10 ]; do
+            sleep 1
+            COUNTER=\$((\$COUNTER + 1))
+        done
+        if [ ! -e \$DEV ]; then
+            # Last chance to get our mapping
+            $(multipath_rescan)
+            COUNTER=1
+            while [ ! -e "\$DEV" ] && [ \$COUNTER -le 10 ]; do
+                sleep 1
+                COUNTER=\$((\$COUNTER + 1))
+            done
+        fi
+        # Exit with error if mapping does not exist
+        if [ ! -e \$DEV ]; then
+            exit 1
+        fi
+
+        DM_HOLDER=\$($BASENAME \`$READLINK \$DEV\`)
+        DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
+        # Wait a bit for mapping's paths
+        COUNTER=1
+        while [ ! "\${DM_SLAVE}" ] && [ \$COUNTER -le 10 ]; do
+            sleep 1
+            COUNTER=\$((\$COUNTER + 1))
+        done
+        # Exit with error if mapping has no path
+        if [ ! "\${DM_SLAVE}" ]; then
+            exit 1
+        fi
+EOF
+}
+
+function remove_lun {
+    local WWN
+    WWN="$1"
+    cat <<EOF
+      DEV="/dev/mapper/3$WWN"
+      DM_HOLDER=\$($BASENAME \`$READLINK \$DEV\`)
+      DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
+
+      $(multipath_flush "\$DEV")
+
+      unset device
+      for device in \${DM_SLAVE}
+      do
+          if [ -e /dev/\${device} ]; then
+              $SUDO $BLOCKDEV --flushbufs /dev/\${device}
+              echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
+          fi
+      done
+EOF
 }
