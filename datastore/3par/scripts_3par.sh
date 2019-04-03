@@ -18,11 +18,8 @@
 
 BLOCKDEV=blockdev
 DMSETUP=dmsetup
-FIND=find
-HEAD=head
 MULTIPATH=multipath
 MULTIPATHD=multipathd
-OD=od
 TEE=tee
 BASENAME=basename
 
@@ -62,30 +59,4 @@ function get_vv_wwn {
   local NAME_WWN
   NAME_WWN="$1"
   echo "$NAME_WWN" | $AWK -F: '{print $2}'
-}
-
-function ssh_exec_and_log_all
-{
-    SSH_EXEC=`$SSH $1 bash -s <<EOF
-export LANG=C
-export LC_ALL=C
-$2
-EOF`
-    SSH_EXEC_RC=$?
-
-    if [ $SSH_EXEC_RC -ne 0 ]; then
-        log_error "Command \"$2\" failed: $SSH_EXEC"
-
-        if [ -n "$3" ]; then
-            error_message "$3"
-        else
-            error_message "Error executing $2: $SSH_EXEC"
-        fi
-
-        return $SSH_EXEC_RC
-    else
-        log $SSH_EXEC
-    fi
-
-    return 0
 }
