@@ -83,6 +83,7 @@ Support standard OpenNebula datastore operations:
 
 ## ToDo
 
+1. QOS Priority per VM
 1. Configuration of API endpoint and auth in datastore template
 1. Sunstone integration
 
