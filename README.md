@@ -95,7 +95,7 @@ The installation instructions are for OpenNebula 5.6+.
 ### Get the addon from github
 ```bash
 cd ~
-git clone git@gitlab.feldhost.cz:feldhost/one-addon-3par.git
+git clone git@gitlab.feldhost.cz:feldhost-public/one-addon-3par.git
 ```
 
 ### Automated installation
