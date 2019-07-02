@@ -13,7 +13,7 @@ More info:
 * [How to Contribute](http://opennebula.org/addons/contribute/)
 * Support: [OpenNebula user forum](https://forum.opennebula.org/c/support)
 * Development: [OpenNebula developers forum](https://forum.opennebula.org/c/development)
-* Issues Tracking: GitHub issues (https://gitlab.feldhost.cz/feldhost/one-addon-3par/issues)
+* Issues Tracking: GitHub issues (https://gitlab.feldhost.cz/feldhost-public/one-addon-3par/issues)
 
 ## Authors
 
