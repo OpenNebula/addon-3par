@@ -68,7 +68,6 @@ Support standard OpenNebula datastore operations:
 * datastore configuration via CLI
 * all Datastore MAD(DATASTORE_MAD) and Transfer Manager MAD(TM_MAD) functionality
 * SYSTEM datastore
-* support migration from one to another SYSTEM datastore if both are with `3par` TM_MAD
 * TRIM/discard in the VM when virtio-scsi driver is in use (require `DEV_PREFIX=sd` and `DISCARD=unmap`)
 * disk images can be full provisioned, thin provisioned, thin deduplicated, thin compressed or thin deduplicated and compressed RAW block devices
 * support different 3PAR CPGs as separate datastores
@@ -80,8 +79,8 @@ Support standard OpenNebula datastore operations:
 
 1. Tested only with KVM hypervisor
 1. When SYSTEM datastore is in use the reported free/used/total space is the space on 3PAR CPG. (On the host filesystem there are mostly symlinks and small files that do not require much disk space)
-1. No support for volatile disks, because SYSTEM datastore must be FILE type by design, so it is impossible to use volatile disks as block devices.
-1. Tested/confirmed working on CentOS 7 (Frontend) and Fedora 29 (Nodes).
+1. No support for volatile disks, because SYSTEM datastore must be FILE type by design, so it is impossible to use volatile disks as block devices (without patching core).
+1. Tested/confirmed working on CentOS 7 (Frontend) and CentOS 7 or Fedora 29 (Nodes).
 
 ## ToDo
 
