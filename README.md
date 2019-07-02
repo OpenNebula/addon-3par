@@ -21,8 +21,10 @@ More info:
 
 ## Compatibility
 
-This add-on is developed and tested with OpenNebula 5.6.1 and 3PAR OS 3.2.2.612 (MU4)+P51,P56,P59,P94,P98,P102,P106,P113,P118,P127  
-Tested also on OpenNebula 5.8 and 3PAR OS 3.3.1.410 (MU2)+P32,P34,P36,P37,P39,P40,P41,P42,P45,P48
+This add-on is developed and tested with:
+- OpenNebula 5.6 and 3PAR OS 3.2.2.612 (MU4)+P51,P56,P59,P94,P98,P102,P106,P113,P118,P127  
+- OpenNebula 5.8 and 3PAR OS 3.3.1.410 (MU2)+P32,P34,P36,P37,P39,P40,P41,P42,P45,P48
+- OpenNebula 5.8 and 3PAR OS 3.3.1.460 (MU3)+P50,P58,P61,P77,P78,P81
 
 ## Requirements
 
