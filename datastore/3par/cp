@@ -191,7 +191,7 @@ REGISTER_CMD=$(cat <<EOF
         mv $TMP_DST.raw $TMP_DST
     fi
 
-    $SUDO dd \if=$TMP_DST of=$DEV bs=64k
+    dd \if=$TMP_DST of=$DEV bs=64k
 
     # remove original
     $RM -f $TMP_DST
