@@ -100,4 +100,5 @@ else
     echo "ERROR: Unknown OpenNebula version '$ONE_VER' detected!"
     echo "Please install manually"
     echo
+    exit 1
 fi
