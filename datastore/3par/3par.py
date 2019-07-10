@@ -243,7 +243,9 @@ def cloneVV(cl, args):
     # first create volume
     vv = createVVWithName(cl, destName, args)
 
-    cl.copyVolume(srcName, destName, args.cpg)
+    optional = {'skipZero': True}
+
+    cl.copyVolume(srcName, destName, args.cpg, optional)
 
     wwn = vv.get('wwn').lower()
     print '{name}:{wwn}'.format(name=destName, wwn=wwn)
@@ -254,7 +256,9 @@ def copyVV(cl, args):
   else:
     srcName = createVVName(args.namingType, args.id)
 
-  cl.copyVolume(srcName, args.destName, args.cpg)
+  optional = {'skipZero': True}
+
+  cl.copyVolume(srcName, args.destName, args.cpg, optional)
 
 def growVV(cl, args):
     cl.growVolume(args.name, args.growBy)
@@ -313,12 +317,15 @@ def createVmClone(cl, args):
     # create new VV
     vv = createVVWithName(cl, destName, args)
 
+    # define optional for speed up process
+    optional = {'priority': 1, 'skipZero': True}
+
     # copy volume
     done = False
     i = 0
     while not done:
         try:
-            cl.copyVolume(args.srcName, destName, args.cpg)
+            cl.copyVolume(args.srcName, destName, args.cpg, optional)
             done = True
         except exceptions.HTTPConflict as ex:
             # failed after 5 tries, revert, exit
