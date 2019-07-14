@@ -89,6 +89,7 @@ function tmResetMigrate()
 
 if [ -f "$ONE_VAR/remotes/VERSION" ]; then
     [ -n "$ONE_VER" ] || ONE_VER="$(< "$ONE_VAR/remotes/VERSION")"
+    ONE_VER=$(echo $ONE_VER| cut -d '.' -f 1,2,3)
 fi
 OIFS=$IFS
 IFS='.'
