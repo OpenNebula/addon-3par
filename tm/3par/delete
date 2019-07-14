@@ -146,35 +146,23 @@ done < <(onedatastore show -x $DSID | $XPATH \
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
-DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                        -p $PASSWORD -hs $DST_HOST)
-
-if [ $? -ne 0 ]; then
-  error_message "$DST_HOST_3PAR"
-  exit 1
-fi
-
-if [ "$DST_HOST_3PAR" == "1" ]; then
-  #-------------------------------------------------------------------------------
-  # Unmap non-persistent image from host
-  #-------------------------------------------------------------------------------
-
-  if [ "$CLONE" == "YES" ]; then
+# if clone = non-persistent disk, get right name and wwn
+if [ "$CLONE" == "YES" ]; then
     #-------------------------------------------------------------------------------
     # Get system ds information
     #-------------------------------------------------------------------------------
-    
+
     unset i j XPATH_ELEMENTS
-    
+
     while IFS= read -r -d '' element; do
         XPATH_ELEMENTS[i++]="$element"
     done < <(onedatastore show -x $SYS_DSID | $XPATH \
                                 /DATASTORE/TEMPLATE/NAMING_TYPE \
                                 /DATASTORE/TEMPLATE/QOS_ENABLE)
-    
+
     NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
     QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
-  
+
     # get VM disk WWN
     NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                 -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
@@ -183,10 +171,25 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
       error_message "$NAME_WWN"
       exit 1
     fi
-  fi
-  
-  NAME=$(get_vv_name "$NAME_WWN")
-  WWN=$(get_vv_wwn "$NAME_WWN")
+fi
+
+NAME=$(get_vv_name "$NAME_WWN")
+WWN=$(get_vv_wwn "$NAME_WWN")
+
+# Check if DST host is 3PAR host, so compute node
+DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
+                                                                        -p $PASSWORD -hs $DST_HOST)
+
+if [ $? -ne 0 ]; then
+  error_message "$DST_HOST_3PAR"
+  exit 1
+fi
+
+# if compute node, flush and unmap drive
+if [ "$DST_HOST_3PAR" == "1" ]; then
+  #-------------------------------------------------------------------------------
+  # Unmap non-persistent image from host
+  #-------------------------------------------------------------------------------
   
   FLUSH_CMD=$(cat <<EOF
       set -e
