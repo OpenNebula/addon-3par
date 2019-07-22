@@ -545,8 +545,23 @@ def deleteVVWithName(cl, name):
             if key.startswith('snap'):
                 snap = data.get('value')
                 cl.deleteVolume(snap)
+
         # try delete again
-        cl.deleteVolume(name)
+        done = False
+        i = 0
+        while not done:
+            try:
+                cl.deleteVolume(name)
+                done = True
+            except exceptions.HTTPConflict as ex:
+                # this can happen, if vv has child - deleting after cloning disk, which is not finished yet
+                if i > 20:
+                    # other issue, exiting
+                    cl.logout()
+                    print ex
+                    exit(1)
+                i += 1
+                time.sleep(5)
 
 def prepareQosRules(args):
     qosRules = {
