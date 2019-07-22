@@ -50,11 +50,13 @@ while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/ID \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE )
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE \
+                    /DS_DRIVER_ACTION_DATA/MONITOR_VM_DISKS)
 
 CPG="${XPATH_ELEMENTS[0]:-$CPG}"
 DSID="${XPATH_ELEMENTS[1]}"
 NAMING_TYPE="${XPATH_ELEMENTS[2]:-$NAMING_TYPE}"
+MONITOR_VM_DISKS="${XPATH_ELEMENTS[3]}"
 
 # ------------ Compute datastore usage -------------
 
@@ -63,6 +65,11 @@ python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -
 if [ $? -ne 0 ]; then
   error_message "Error monitoring CPG"
   exit 1
+fi
+
+# exit if monitor vm disks is not required
+if [ $MONITOR_VM_DISKS -ne 1 ]; then
+  exit 0
 fi
 
 # Get images
