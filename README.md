@@ -13,11 +13,15 @@ More info:
 * [How to Contribute](http://opennebula.org/addons/contribute/)
 * Support: [OpenNebula user forum](https://forum.opennebula.org/c/support)
 * Development: [OpenNebula developers forum](https://forum.opennebula.org/c/development)
-* Issues Tracking: GitHub issues (https://gitlab.feldhost.cz/feldhost-public/one-addon-3par/issues)
+* Issues Tracking: GitHub issues (https://github.com/OpenNebula/addon-3par/issues)
 
 ## Authors
 
-* Leader: Kristian Feldsam (feldsam@feldhost.cz)
+* Leader: Kristian Feldsam (feldsam@feldhost.net)
+
+## Support
+
+[FeldHost™ as OpenNebula Systems Service Partner](https://www.feldhost.net/products/opennebula) offers design, implementation, operation and management of a cloud solution based on OpenNebula.
 
 ## Compatibility
 
@@ -95,7 +99,7 @@ The installation instructions are for OpenNebula 5.6+.
 ### Get the addon from github
 ```bash
 cd ~
-git clone git@gitlab.feldhost.cz:feldhost-public/one-addon-3par.git
+git clone https://github.com/OpenNebula/addon-3par.git
 ```
 
 ### Automated installation
@@ -103,7 +107,7 @@ The automated installation is best suitable for new deployments.
 
 * Run the install script as 'root' user and check for any reported errors or warnings
 ```bash
-bash ~/one-addon-3par/install.sh
+bash ~/addon-3par/install.sh
 ```
 
 ### Manual installation
@@ -114,10 +118,10 @@ The following commands are related to latest OpenNebula version.
 
 * Copy 3PAR's DATASTORE_MAD driver files
 ```bash
-cp -a ~/one-addon-3par/datastore/3par /var/lib/one/remotes/datastore/
+cp -a ~/addon-3par/datastore/3par /var/lib/one/remotes/datastore/
 
 # copy config
-cp -a ~/one-addon-3par/etc/datastore/3par /var/lib/one/remotes/etc/datastore/
+cp -a ~/addon-3par/etc/datastore/3par /var/lib/one/remotes/etc/datastore/
 
 # fix ownership
 chown -R oneadmin.oneadmin /var/lib/one/remotes/datastore/3par /var/lib/one/remotes/etc/datastore/3par
@@ -126,7 +130,7 @@ chown -R oneadmin.oneadmin /var/lib/one/remotes/datastore/3par /var/lib/one/remo
 
 * Copy 3PAR's TM_MAD driver files
 ```bash
-cp -a ~/one-addon-3par/tm/3par /var/lib/one/remotes/tm/
+cp -a ~/addon-3par/tm/3par /var/lib/one/remotes/tm/
 
 # fix ownership
 chown -R oneadmin.oneadmin /var/lib/one/remotes/tm/3par
@@ -175,10 +179,6 @@ DS_MAD_CONF = [
 LIVE_DISK_SNAPSHOTS="kvm-qcow2 kvm-ceph kvm-3par"
 ```
 
-* Live snapshots are tested only by using TCP communication with libvirtd on OpenNebula Nodes. Follow [this docs](https://docs.opennebula.org/5.6/deployment/open_cloud_host_setup/kvm_driver.html?highlight=qemu%20tcp#multiple-actions-per-host)
-* In `/var/lib/one/remotes/etc/vmm/kvm/kvmrc` also set `export QEMU_PROTOCOL=qemu+tcp`
-* Probably works out of box, because by default `QEMU_PROTOCOL=qemu+ssh`, so it tries connect like this `virsh -c qemu+ssh://node/ ...`, but not tested
-
 ### Post-install
 * Restart `opennebula` service
 ```bash
@@ -189,10 +189,16 @@ systemtl restart opennebula
 su - oneadmin -c 'onehost sync --force'
 ```
 
+### Live snapshots info
+
+* Live snapshots are tested only by using TCP communication with libvirtd on OpenNebula Nodes. Follow [this docs](https://docs.opennebula.org/5.8/deployment/open_cloud_host_setup/kvm_driver.html?highlight=qemu%20tcp#multiple-actions-per-host)
+* In `/var/lib/one/remotes/etc/vmm/kvm/kvmrc` also set `export QEMU_PROTOCOL=qemu+tcp`
+* Probably works out of the box, because by default `QEMU_PROTOCOL=qemu+ssh`, so it should tries to connect like this `virsh -c qemu+ssh://node/ ...`, but not tested
+
 ### Configuring the System Datastore
 
 This addon enables full support of transfer manager (TM_MAD) backend of type 3par for the system datastore.  
-The system datastore will hold only the symbolic links to the 3PAR block devices and context isos, so it will not take much space. See more details on the [Open Cloud Storage Setup](http://docs.opennebula.org/5.6/deployment/open_cloud_storage_setup/).
+The system datastore will hold only the symbolic links to the 3PAR block devices and context isos, so it will not take much space. See more details on the [Open Cloud Storage Setup](https://docs.opennebula.org/5.8/deployment/open_cloud_storage_setup/).
 
 ### Configuring the Datastore
 
@@ -309,7 +315,7 @@ $ onedatastore list
    1 default            98.3G 93%   -                 0 img  fs       shared
    2 files              98.3G 93%   -                 0 fil  fs       ssh
  100 3PAR IMAGE         4.5T  99%   -                 0 img  3par     3par
- 101 3PAR SYSTEM        4.5T  -     -                 0 sys  -        3par
+ 101 3PAR SYSTEM        4.5T  99%   -                 0 sys  -        3par
  ```
 
 ## 3PAR best practices guide incl. naming conventions
