@@ -135,7 +135,7 @@ http://*|https://*)
     ;;
 esac
 
-multiline_exec_and_log "set -e -o pipefail; $DUMP | $SSH $DST_HOST $DD of=$TMP_DST bs=64k" \
+multiline_exec_and_log "set -e -o pipefail; $DUMP | $SSH $DST_HOST $DD of=$TMP_DST bs=${DD_BLOCK_SIZE:-64k}" \
              "Error dumping $SRC to $DST_HOST:$TMP_DST"
 
 # Create image
@@ -191,7 +191,7 @@ REGISTER_CMD=$(cat <<EOF
         mv $TMP_DST.raw $TMP_DST
     fi
 
-    dd \if=$TMP_DST of=$DEV bs=64k
+    dd \if=$TMP_DST of=$DEV bs=${DD_BLOCK_SIZE:-64k}
 
     # remove original
     $RM -f $TMP_DST
