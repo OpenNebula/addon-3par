@@ -573,6 +573,16 @@ def prepareQosRules(args):
         'latencyGoal': args.qosLatency
     }
 
+    if args.qosMinIops == 0:
+        qosRules['ioMinGoal'] = 1
+
+    if args.qosMinBw == 0:
+        qosRules['bwMinGoalKB'] = 1
+
+    if args.qosLatency == 0:
+        qosRules['latencyGoal'] = 5000
+        qosRules['defaultLatency'] = True
+
     if args.qosPriority == 'LOW':
         qosRules['priority'] = 1
     elif args.qosPriority == 'NORMAL':

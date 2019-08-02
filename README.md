@@ -243,6 +243,7 @@ Some configuration attributes must be set to enable a datastore as 3PAR enabled 
    associated with the policy. If a minimum goal is set for IOPS, then a maximum limit must also be set for IOPS.
    The minimum goal will be ignored if the system does not have policies with a latency goal set.
    The IOPS minimum goal must be between 0 and 2 147 483 647 IO/s.
+   Zero means disabled.
 
 7. The maximum bandwidth permitted for the virtual volumes associated with the policy. The maximum limit does not have
    dependencies on the other optimization settings.
@@ -252,12 +253,14 @@ Some configuration attributes must be set to enable a datastore as 3PAR enabled 
    associated with the policy. If a minimum goal is set for bandwidth, then a maximum limit must also be set
    for bandwidth. The minimum goal will be ignored if the system does not have policies with a latency goal set.
    The bandwidth minimum goal must be between 0 and 9 007 199 254 740 991 KB/s.
+   Zero means disabled.
 
 9. Service time that the system will attempt to achieve for the virtual volumes associated with the policy.
    A latency goal requires the system to have other policies with a minimum goal specified so that the latency goal
    algorithm knows which policies to throttle. The sequence in which these will be throttled is set
    by priority (low priority is throttled first).
    The latency goal must be between 0,50 and 10 000,00 ms.
+   Zero means disabled.
 
 The following example illustrates the creation of a 3PAR datastore.
 The datastore will use hosts `tst.lin.fedora1.host`, `tst.lin.fedora2.host` and `tst.lin.fedora3.host` for importing and creating images.
