@@ -524,7 +524,7 @@ def createVVWithName(cl, name, args):
     if args.tdvv == True:
         optional['tdvv'] = True
 
-    if args.compression == True:
+    if args.compression == True and args.size >= 16384:
         optional['compression'] = True
 
     if args.comment:
