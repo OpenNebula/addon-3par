@@ -129,6 +129,18 @@ createVmCloneParser.add_argument('-tdvv', '--tdvv', help='Thin provision with de
 createVmCloneParser.add_argument('-compr', '--compression', help='Thin provision compressed volume', type=boolarg, default=False)
 createVmCloneParser.add_argument('-co', '--comment', help='Comment')
 
+# CreateVmVV task parser
+createVmVVParser = subparsers.add_parser('createVmVV', parents=[commonParser], help='Create new VM VV')
+createVmVVParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
+createVmVVParser.add_argument('-id', '--id', help='ID of VM disk', required=True)
+createVmVVParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
+createVmVVParser.add_argument('-sz', '--size', help='Size of destination VV in MiB', type=int, required=True)
+createVmVVParser.add_argument('-c', '--cpg', help='Destination VV CPG Name', required=True)
+createVmVVParser.add_argument('-tpvv', '--tpvv', help='Thin provision', type=boolarg, default=True)
+createVmVVParser.add_argument('-tdvv', '--tdvv', help='Thin provision with deduplication', type=boolarg, default=False)
+createVmVVParser.add_argument('-compr', '--compression', help='Thin provision compressed volume', type=boolarg, default=False)
+createVmVVParser.add_argument('-co', '--comment', help='Comment')
+
 # GetVmClone task parser
 getVmCloneParser = subparsers.add_parser('getVmClone', parents=[commonParser], help='Get VM Clone VV name and wwn')
 getVmCloneParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
@@ -340,6 +352,16 @@ def createVmClone(cl, args):
     # print info
     wwn = vv.get('wwn').lower()
     print '{name}:{wwn}'.format(name=destName, wwn=wwn)
+
+def createVmVV(cl, args):
+    name = createVmCloneName(args.namingType, args.id, args.vmId)
+
+    # create new VV
+    vv = createVVWithName(cl, name, args)
+
+    # print info
+    wwn = vv.get('wwn').lower()
+    print '{name}:{wwn}'.format(name=name, wwn=wwn)
 
 def getVmClone(cl, args):
     name = createVmCloneName(args.namingType, args.id, args.vmId)

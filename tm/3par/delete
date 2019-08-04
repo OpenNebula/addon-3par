@@ -104,20 +104,22 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DISK_TYPE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
 NAME_WWN="${XPATH_ELEMENTS[0]}"
 PERSISTENT="${XPATH_ELEMENTS[1]}"
 CLONE="${XPATH_ELEMENTS[2]}"
-IMAGE_ID="${XPATH_ELEMENTS[3]}"
-SYS_DSID="${XPATH_ELEMENTS[4]}"
+DISK_TYPE="${XPATH_ELEMENTS[3]}"
+IMAGE_ID="${XPATH_ELEMENTS[4]}"
+SYS_DSID="${XPATH_ELEMENTS[5]}"
 
 # Exit if persistent
 [ "$PERSISTENT" == "YES" ] && exit 0
 
 # Not persistent and not clone, so this disk can be used by more VMs at the same time
-if [ "$CLONE" == "NO" ]; then
+if [ "$CLONE" == "NO" ] && [ "$DISK_TYPE" == "BLOCK" ]; then
     # check if disk is in use by other VMs
     unset i XPATH_ELEMENTS
 
@@ -146,8 +148,8 @@ done < <(onedatastore show -x $DSID | $XPATH \
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
-# if clone = non-persistent disk, get right name and wwn
-if [ "$CLONE" == "YES" ]; then
+# if clone or volatile = non-persistent disk, get right name and wwn
+if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
     #-------------------------------------------------------------------------------
     # Get system ds information
     #-------------------------------------------------------------------------------
@@ -222,8 +224,8 @@ if [ "$QOS_ENABLE" == "YES" ]; then
   fi
 fi
 
-# Exit if not clone
-[ "$CLONE" == "NO" ] && exit 0
+# Exit if not clone and not volatile
+[ "$CLONE" == "NO" ] && [ "$DISK_TYPE" == "BLOCK" ] && exit 0
 
 #-------------------------------------------------------------------------------
 # Delete non-persistent image copy

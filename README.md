@@ -78,13 +78,13 @@ Support standard OpenNebula datastore operations:
 * support for 3PAR Priority Optimization Policy (QoS)
 * live VM snapshots
 * live VM migrations
+* Volatile disks support (need patched KVM driver `attach_disk` script)
 * Sunstone integration - available via our enterprise repository
 
 ## Limitations
 
 1. Tested only with KVM hypervisor
 1. When SYSTEM datastore is in use the reported free/used/total space is the space on 3PAR CPG. (On the host filesystem there are mostly symlinks and small files that do not require much disk space)
-1. No support for volatile disks, because SYSTEM datastore must be FILE type by design, so it is impossible to use volatile disks as block devices (without patching core).
 1. Tested/confirmed working on CentOS 7 (Frontend) and CentOS 7 or Fedora 29 (Nodes).
 
 ## ToDo
@@ -194,6 +194,11 @@ su - oneadmin -c 'onehost sync --force'
 * Live snapshots are tested only by using TCP communication with libvirtd on OpenNebula Nodes. Follow [this docs](https://docs.opennebula.org/5.8/deployment/open_cloud_host_setup/kvm_driver.html?highlight=qemu%20tcp#multiple-actions-per-host)
 * In `/var/lib/one/remotes/etc/vmm/kvm/kvmrc` also set `export QEMU_PROTOCOL=qemu+tcp`
 * Probably works out of the box, because by default `QEMU_PROTOCOL=qemu+ssh`, so it should tries to connect like this `virsh -c qemu+ssh://node/ ...`, but not tested
+
+### Volatile disks support info
+
+To make volatile disks working, we need to patch vmm driver action `attach_disk`. Patched file is available in `vmm/kvm`
+directory and have to be installed to `/var/lib/one/remotes/vmm/kvm/`.
 
 ### Configuring the System Datastore
 
