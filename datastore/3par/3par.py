@@ -549,6 +549,10 @@ def createVVWithName(cl, name, args):
     if args.compression == True and args.size >= 16384:
         optional['compression'] = True
 
+    # minumum size for volume is 256MiB
+    if args.size < 256:
+        args.size = 256
+
     if args.comment:
         optional['comment'] = args.comment
 
