@@ -85,7 +85,7 @@ Support standard OpenNebula datastore operations:
 
 1. Tested only with KVM hypervisor
 1. When SYSTEM datastore is in use the reported free/used/total space is the space on 3PAR CPG. (On the host filesystem there are mostly symlinks and small files that do not require much disk space)
-1. Tested/confirmed working on CentOS 7 (Frontend) and CentOS 7 or Fedora 29 (Nodes).
+1. Tested/confirmed working on CentOS 7 (Frontend) and Oracle Linux 7, Oracle Linux 8, CentOS 7, CentOS 8, Fedora 29+ (Nodes).
 
 ## ToDo
 
