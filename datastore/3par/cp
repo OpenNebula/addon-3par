@@ -187,11 +187,10 @@ REGISTER_CMD=$(cat <<EOF
     FORMAT=\$($QEMU_IMG info $TMP_DST | grep "^file format:" | awk '{print \$3}' || :)
 
     if [ "\$FORMAT" != "raw" ]; then
-        $QEMU_IMG convert -O raw $TMP_DST $TMP_DST.raw
-        mv $TMP_DST.raw $TMP_DST
+        $QEMU_IMG convert -O raw $TMP_DST $DEV
+    else
+        dd \if=$TMP_DST of=$DEV bs=${DD_BLOCK_SIZE:-64k}
     fi
-
-    dd \if=$TMP_DST of=$DEV bs=${DD_BLOCK_SIZE:-64k}
 
     # remove original
     $RM -f $TMP_DST
