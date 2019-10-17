@@ -290,11 +290,14 @@ def exportVV(cl, args):
     host = args.host
 
     # check if VLUN already exists
-    vluns = cl.getHostVLUNs(host)
-    for vlun in vluns:
-        if vlun.get('volumeName') == name:
-            print vlun.get('lun')
-            return
+    try:
+        vluns = cl.getHostVLUNs(host)
+        for vlun in vluns:
+            if vlun.get('volumeName') == name:
+                print vlun.get('lun')
+                return
+    except exceptions.HTTPNotFound:
+        pass
 
     # create VLUN
     done = False
