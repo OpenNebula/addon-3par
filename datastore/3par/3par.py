@@ -18,9 +18,6 @@
 from hpe3parclient import client, exceptions
 import argparse
 import time
-import urllib3
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ----------------------------
 # Define parser and subparsers
@@ -633,7 +630,7 @@ secure = False
 if args.secure == True:
     secure = True
 
-cl = client.HPE3ParClient(args.api, secure)
+cl = client.HPE3ParClient(args.api, False, secure, None, True)
 cl.setSSHOptions(args.ip, args.username, args.password)
 
 try:
