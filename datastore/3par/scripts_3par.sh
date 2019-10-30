@@ -93,7 +93,7 @@ function discover_lun {
             exit 1
         fi
 
-        DM_HOLDER=\$($BASENAME \`$READLINK \$DEV\`)
+        DM_HOLDER=\$($SUDO $DMSETUP ls -o blkdevname | grep -Po "(?<=3$WWN\s\()[^)]+")
         DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
         # Wait a bit for mapping's paths
         COUNTER=1
@@ -113,7 +113,7 @@ function remove_lun {
     WWN="$1"
     cat <<EOF
       DEV="/dev/mapper/3$WWN"
-      DM_HOLDER=\$($BASENAME \`$READLINK \$DEV\`)
+      DM_HOLDER=\$($SUDO $DMSETUP ls -o blkdevname | grep -Po "(?<=3$WWN\s\()[^)]+")
       DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
 
       $(multipath_flush "\$DEV")
