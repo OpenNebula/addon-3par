@@ -43,6 +43,7 @@ commonParser.add_argument('-i', '--ip', help='3PAR IP for SSH authentication opt
                           required=True)
 commonParser.add_argument('-u', '--username', help='3PAR username', required=True)
 commonParser.add_argument('-p', '--password', help='3PAR password', required=True)
+commonParser.add_argument('-sd', '--softDelete', help='Soft-delete volumes/snapshots', type=boolarg, default=True)
 
 # MonitorCPG task parser
 monitorCPGParser = subparsers.add_parser('monitorCPG', parents=[commonParser], help='Get CPG Available Space')
@@ -384,6 +385,15 @@ def createSnapshot(cl, args):
 
     name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
 
+    # check for soft deleted snapshot
+    if args.softDelete:
+        try:
+            cl.getVolume(name)
+            # snap exists, so delete it
+            cl.deleteVolume(name)
+        except exceptions.HTTPNotFound:
+            pass
+
     cl.createSnapshot(name, srcName, {'readOnly': True})
     cl.setVolumeMetaData(srcName, metaKey, name)
 
@@ -413,7 +423,11 @@ def deleteSnapshot(cl, args):
 
     name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
 
-    cl.deleteVolume(name)
+    if args.softDelete:
+        cl.modifyVolume(name, {'expirationHours': 168})
+    else:
+        cl.deleteVolume(name)
+
     cl.removeVolumeMetaData(srcName, metaKey)
 
 
@@ -433,14 +447,17 @@ def flattenSnapshot(cl, args):
         if key.startswith('snap'):
             snap = data.get('value')
             try:
-                # need to wait for snapshot promoting
-                done = False
-                while not done:
-                    try:
-                        cl.deleteVolume(snap)
-                        done = True
-                    except exceptions.HTTPConflict:
-                        time.sleep(5)
+                if args.softDelete:
+                    cl.modifyVolume(snap, {'expirationHours': 168})
+                else:
+                    # need to wait for snapshot promoting
+                    done = False
+                    while not done:
+                        try:
+                            cl.deleteVolume(snap)
+                            done = True
+                        except exceptions.HTTPConflict:
+                            time.sleep(5)
                 # snapshot deleted, remove metadata
                 cl.removeVolumeMetaData(srcName, key)
             except exceptions.HTTPNotFound:
@@ -561,33 +578,43 @@ def createVVWithName(cl, name, args):
     return cl.getVolume(name)
 
 def deleteVVWithName(cl, name):
-    try:
-        cl.deleteVolume(name)
-    except exceptions.HTTPConflict:
-        # try to find and delete snapshots
+    if args.softDelete:
+        cl.modifyVolume(name, {'expirationHours': 168})
+        # find and delete snapshots
         meta = cl.getAllVolumeMetaData(name)
         for data in meta.get('members'):
             key = data.get('key')
             if key.startswith('snap'):
                 snap = data.get('value')
-                cl.deleteVolume(snap)
+                cl.modifyVolume(snap, {'expirationHours': 168})
+    else:
+        try:
+            cl.deleteVolume(name)
+        except exceptions.HTTPConflict:
+            # try to find and delete snapshots
+            meta = cl.getAllVolumeMetaData(name)
+            for data in meta.get('members'):
+                key = data.get('key')
+                if key.startswith('snap'):
+                    snap = data.get('value')
+                    cl.deleteVolume(snap)
 
-        # try delete again
-        done = False
-        i = 0
-        while not done:
-            try:
-                cl.deleteVolume(name)
-                done = True
-            except exceptions.HTTPConflict as ex:
-                # this can happen, if vv has child - deleting after cloning disk, which is not finished yet
-                if i > 20:
-                    # other issue, exiting
-                    cl.logout()
-                    print ex
-                    exit(1)
-                i += 1
-                time.sleep(5)
+            # try delete again
+            done = False
+            i = 0
+            while not done:
+                try:
+                    cl.deleteVolume(name)
+                    done = True
+                except exceptions.HTTPConflict as ex:
+                    # this can happen, if vv has child - deleting after cloning disk, which is not finished yet
+                    if i > 20:
+                        # other issue, exiting
+                        cl.logout()
+                        print ex
+                        exit(1)
+                    i += 1
+                    time.sleep(5)
 
 def prepareQosRules(args):
     qosRules = {
