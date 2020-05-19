@@ -608,7 +608,8 @@ def deleteVVWithName(cl, name):
                     done = True
                 except exceptions.HTTPConflict as ex:
                     # this can happen, if vv has child - deleting after cloning disk, which is not finished yet
-                    if i > 20:
+                    # wait max 15min
+                    if i > 180:
                         # other issue, exiting
                         cl.logout()
                         print ex
