@@ -95,13 +95,11 @@ for VMID in ${VMS[@]}; do
   done < <(echo "$VMXML"| $XPATH \
                       %m%/VM/TEMPLATE/DISK/SOURCE \
                       %m%/VM/TEMPLATE/DISK/CLONE \
-                      %m%/VM/TEMPLATE/DISK/DISK_ID \
-                      %m%/VM/TEMPLATE/DISK/IMAGE_ID )
+                      %m%/VM/TEMPLATE/DISK/DISK_ID )
                       
   SOURCES="${XPATH_ELEMENTS[0]}"
   CLONES=($(echo "${XPATH_ELEMENTS[1]}"))
   DISK_IDS=($(echo "${XPATH_ELEMENTS[2]}"))
-  IMAGE_IDS=($(echo "${XPATH_ELEMENTS[3]}"))
 
   k=0
   for SOURCE in $SOURCES; do
