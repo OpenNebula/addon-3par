@@ -83,32 +83,23 @@ done < <(oneimage list -x| $XPATH \
                     %m%/IMAGE_POOL/IMAGE/VMS/ID)
 
 VMS=($(echo "${XPATH_ELEMENTS[0]}" | tr " " "\n" | sort | uniq))
+VMXML=$(onevm list --extended -x)
 
 for VMID in ${VMS[@]}; do
-  VMXML=$(onevm show -x $VMID)
-  
   echo -n "VM=[ID=$VMID,POLL=\""
-  
-  unset i XPATH_ELEMENTS
-  while IFS= read -r -d '' element; do
-      XPATH_ELEMENTS[i++]="$element"
-  done < <(echo "$VMXML"| $XPATH \
-                      %m%/VM/TEMPLATE/DISK/SOURCE \
-                      %m%/VM/TEMPLATE/DISK/CLONE \
-                      %m%/VM/TEMPLATE/DISK/DISK_ID )
-                      
-  SOURCES="${XPATH_ELEMENTS[0]}"
-  CLONES=($(echo "${XPATH_ELEMENTS[1]}"))
-  DISK_IDS=($(echo "${XPATH_ELEMENTS[2]}"))
 
-  k=0
-  for SOURCE in $SOURCES; do
-    if [ "${CLONES[$k]}" == "YES" ]; then
-      DISK="$NAMING_TYPE.one.vm.$VMID.${DISK_IDS[$k]}.vv"
+  while IFS= read -r ROW; do
+    ROW=($ROW)
+    DISK_ID=${ROW[0]}
+    CLONE=${ROW[1]}
+    SOURCE=${ROW[2]}
+
+    if [ "${CLONE}" == "YES" ] || ([ "${CLONE}" == "NO" ] && [ "${SOURCE}" == "EMPTY" ]); then
+      DISK="$NAMING_TYPE.one.vm.$VMID.${DISK_ID}.vv"
     else
       DISK=$(get_vv_name "$SOURCE")
     fi
-    
+
     diskSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                     -p $PASSWORD -n $DISK -t USED)
 
@@ -117,34 +108,25 @@ for VMID in ${VMS[@]}; do
       exit 1
     fi
 
-    echo -n "DISK_SIZE=[ID=${DISK_IDS[$k]},SIZE=${diskSize}] "
-    
+    echo -n "DISK_SIZE=[ID=${DISK_ID},SIZE=${diskSize}] "
+
     # snapshots
-    unset i XPATH_ELEMENTS
-    while IFS= read -r -d '' element; do
-        XPATH_ELEMENTS[i++]="$element"
-    done < <(echo "$VMXML"| $XPATH \
-                        %m%/VM/SNAPSHOTS[DISK_ID=${DISK_IDS[$k]}]/SNAPSHOT/ID )
-                        
-    SNAPSHOT_IDS="${XPATH_ELEMENTS[0]}"
-    if [ "$SNAPSHOT_IDS" ]; then
-      for SNAP_ID in $SNAPSHOT_IDS; do
-        SNAP="$DISK.$SNAP_ID"
-        
-        snapSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
+    while IFS= read -r SNAP_ID; do
+      SNAP="$DISK.$SNAP_ID"
+
+      snapSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                         -p $PASSWORD -n $SNAP -t SNAP)
 
-        if [ $? -ne 0 ]; then
-          error_message "$snapSize"
-          exit 1
-        fi
+      if [ $? -ne 0 ]; then
+        echo $SNAP
+        error_message "$snapSize"
+        exit 1
+      fi
 
-        echo -n "SNAPSHOT_SIZE=[ID=${SNAP_ID},DISK_ID=${DISK_IDS[$k]},SIZE=${snapSize}] "
-      done
-    fi
-        
-    let "k++"
-  done
+      echo -n "SNAPSHOT_SIZE=[ID=${SNAP_ID},DISK_ID=${DISK_ID},SIZE=${snapSize}] "
+    done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID]/SNAPSHOTS[DISK_ID=$DISK_ID]/SNAPSHOT" -v "ID" -n)
+
+  done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID]/TEMPLATE/DISK" -v "DISK_ID" -o " " --if "CLONE" -v "CLONE" -o " " --else -o "NO " -b --if "SOURCE" -v "SOURCE" --else -o "EMPTY" -b -n )
   
   echo "\"]"
   

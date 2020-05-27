@@ -38,9 +38,10 @@ This add-on is developed and tested with:
 * Password-less SSH access from the front-end `oneadmin` user to the `node` instances.
 * 3PAR python package `python-3parclient` installed, WSAPI username, password and access to the 3PAR API network
 * libvirt-client package installed
+* xmlstarlet package installed - used in TM monitor script instead of OpenNebula native ruby script because it is slow
 
 ```bash
-yum install python-setuptools libvirt-client
+yum install python-setuptools libvirt-client xmlstarlet
 easy_install pip
 pip install python-3parclient
 ```
