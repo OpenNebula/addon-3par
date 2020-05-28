@@ -428,7 +428,10 @@ def deleteSnapshot(cl, args):
     else:
         cl.deleteVolume(name)
 
-    cl.removeVolumeMetaData(srcName, metaKey)
+    try:
+        cl.removeVolumeMetaData(srcName, metaKey)
+    except exceptions.HTTPNotFound:
+        pass
 
 
 def flattenSnapshot(cl, args):
