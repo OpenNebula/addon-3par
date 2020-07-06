@@ -6,14 +6,11 @@ The 3PAR datastore driver enables OpenNebula to use a [HPE 3PAR](https://www.hpe
 
 ## Development
 
-To contribute bug patches or new features, you can use the github Pull Request model. It is assumed that code and documentation are contributed under the Apache License 2.0.
+To contribute bug patches or new features, you can use the GitLab Merge Request model. It is assumed that code and documentation are contributed under the Apache License 2.0.
 
 More info:
 
-* [How to Contribute](http://opennebula.org/addons/contribute/)
-* Support: [OpenNebula user forum](https://forum.opennebula.org/c/support)
-* Development: [OpenNebula developers forum](https://forum.opennebula.org/c/development)
-* Issues Tracking: GitHub issues (https://github.com/OpenNebula/addon-3par/issues)
+* Issues Tracking: GitLab issues (https://gitlab.feldhost.cz/feldhost-public/one-addon-3par/issues)
 
 ## Authors
 
@@ -21,7 +18,7 @@ More info:
 
 ## Support
 
-[FeldHost™ as OpenNebula Systems Service Partner](https://www.feldhost.net/products/opennebula) offers design, implementation, operation and management of a cloud solution based on OpenNebula.
+[FeldHost™](https://www.feldhost.net/products/opennebula) offers design, implementation, operation and management of a cloud solution based on OpenNebula.
 
 ## Compatibility
 
