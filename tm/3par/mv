@@ -67,16 +67,23 @@ DST_DIR=`dirname $DST_PATH`
 SRC_DS_DIR=`dirname  $SRC_PATH`
 SRC_VM_DIR=`basename $SRC_PATH`
 
-SRC_HOST_FAILED=0
-[ `lcm_state` -eq 60 ] && SRC_HOST_FAILED=1
-
 if [ "$SRC" == "$DST" ]; then
     log "Not moving $SRC to $DST, they are the same path"
     exit 0
 fi
 
-# Moving files from $SRC_HOST if not failed
-if [ "$SRC_HOST_FAILED" == "0" ] && [ `is_disk $DST_PATH` -eq 0 ]; then
+# VM is in unknown state, SRC_HOST probably in failed state
+if [ `lcm_state` -eq 60 ]; then
+    TEMPLATE=$(onevm show -x "$VMID" | base64 -w0)
+
+    echo "${TEMPLATE}" | `dirname $0`/premigrate ${SRC_HOST} ${DST_HOST} ${DST_PATH} ${VMID} ${DSID}
+    echo "${TEMPLATE}" | `dirname $0`/postmigrate ${SRC_HOST} ${DST_HOST} ${DST_PATH} ${VMID} ${DSID}
+
+    log "Not moving files from $SRC_HOST in FT mode"
+    exit 0
+fi
+
+if [ `is_disk $DST_PATH` -eq 0 ]; then
     ssh_make_path "$DST_HOST" "$DST_DIR"
 
     log "Moving $SRC to $DST"
@@ -185,7 +192,7 @@ if [ "$PERSISTENT" != "YES" ] && [ "$CLONE" == "NO" ]; then
     [ "$RUNNING_VMS" != "1" ] && CAN_UNMAP=0
 fi
 
-if [ "$SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ] && [ "$SRC_HOST_FAILED" == "0" ]; then
+if [ "$SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
     FLUSH_CMD=$(cat <<EOF
         set -e
         $(remove_lun "$WWN")
@@ -196,10 +203,8 @@ EOF
 
     ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
         "Error flushing out mapping"
-fi
 
-if [ "$SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
-  python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
+    python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                                 -n $NAME -hs $SRC_HOST
 
     if [ $? -ne 0 ]; then
