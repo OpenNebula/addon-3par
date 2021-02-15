@@ -73,7 +73,8 @@ if [ "$SRC" == "$DST" ]; then
 fi
 
 # VM is in unknown state, SRC_HOST probably in failed state
-if [ `lcm_state` -eq 60 ]; then
+# Run pre/post migrate only if dest path is not disk
+if [ `lcm_state` -eq 60 ] && [ `is_disk $DST_PATH` -eq 0 ]; then
     TEMPLATE=$(onevm show -x "$VMID" | base64 -w0)
 
     echo "${TEMPLATE}" | `dirname $0`/premigrate ${SRC_HOST} ${DST_HOST} ${DST_PATH} ${VMID} ${DSID}

@@ -161,7 +161,7 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
         DISCOVER_CMD=$(cat <<EOF
             set -e
             $(discover_lun "$LUN" "$WWN")
-            ln -sf "\$DEV" "$DST_PATH"
+            ln -sf "\$DEV" "$DST_DIR/disk.$DISK_ID"
 EOF
 )
 
