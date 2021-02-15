@@ -67,31 +67,27 @@ if [ -n "$7" ]; then
 fi
 
 #--------------------------------------------------------------------------------
-# Create destination dir on the destination server
-#--------------------------------------------------------------------------------
-DST_DIR=`dirname $DST_PATH`
-DST_BASE=`basename $DST_PATH`
-ssh_make_path "$DST_HOST" "$DST_DIR"
-
-#--------------------------------------------------------------------------------
 # Move deployment files to dst host
-# but only if VM is NOT in unknown state
 #--------------------------------------------------------------------------------
-LCM_STATE=`lcm_state`
-if [ $LCM_STATE -ne 60 ] && [ $LCM_STATE -ne 61 ]; then
-  log "Moving $SRC_HOST:$DST_PATH to $DST_HOST:$DST_PATH"
 
-  ssh_exec_and_log "$DST_HOST" "rm -rf '$DST_PATH'" \
-      "Error removing target path to prevent overwrite errors"
+DST_PATH_DIRNAME=`dirname $DST_PATH`
+DST_PATH_BASENAME=`basename $DST_PATH`
 
-  TAR_SSH=$(cat <<EOF
+ssh_make_path "$DST_HOST" "$DST_PATH"
+
+log "Moving $SRC_HOST:$DST_PATH to $DST_HOST:$DST_PATH"
+
+ssh_exec_and_log "$DST_HOST" "rm -rf '$DST_PATH'" \
+    "Error removing target path to prevent overwrite errors"
+
+TAR_SSH=$(cat <<EOF
 set -e -o pipefail
-$TAR -C $DST_DIR --sparse -cf - $DST_BASE | $SSH $DST_HOST '$TAR -C $DST_DIR --sparse -xf -'
+$TAR -C $DST_PATH_DIRNAME --sparse -cf - $DST_PATH_BASENAME | $SSH $DST_HOST '$TAR -C $DST_PATH_DIRNAME --sparse -xf -'
 EOF
 )
 
-  ssh_exec_and_log "$SRC_HOST" "$TAR_SSH" "Error copying disk directory to target host"
-fi
+ssh_exec_and_log "$SRC_HOST" "$TAR_SSH" "Error copying disk directory to target host"
+
 #--------------------------------------------------------------------------------
 # Discover luns on dst host
 #--------------------------------------------------------------------------------
@@ -162,7 +158,6 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
         DISCOVER_CMD=$(cat <<EOF
             set -e
             $(discover_lun "$LUN" "$WWN")
-            ln -sf "\$DEV" "$DST_DIR/disk.$DISK_ID"
 EOF
 )
 
