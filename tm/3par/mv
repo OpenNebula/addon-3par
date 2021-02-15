@@ -74,7 +74,8 @@ fi
 
 # VM is in unknown state, SRC_HOST probably in failed state
 # Run pre/post migrate only if dest path is not disk
-if [ `lcm_state` -eq 60 ]; then
+LCM_STATE=`lcm_state`
+if [ $LCM_STATE -eq 60 ] || [ $LCM_STATE -eq 61 ]; then
   if [ `is_disk $DST_PATH` -eq 0 ]; then
     TEMPLATE=$(onevm show -x "$VMID" | base64 -w0)
 
