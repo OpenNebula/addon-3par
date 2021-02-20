@@ -102,6 +102,9 @@ getVVSizeParser.add_argument('-n', '--name', help='Name of VV', required=True)
 getVVSizeParser.add_argument('-t', '--type', help='Type of size to get', choices=['USED', 'SNAP', 'VSIZE'],
                              required=True)
 
+# getAllVVSize task parser
+getAllVVSizeParser = subparsers.add_parser('getAllVVSize', parents=[commonParser], help='Get sizes of all VVs')
+
 # ExportVV task parser
 exportVVParser = subparsers.add_parser('exportVV', parents=[commonParser], help='Export VV to host')
 exportVVParser.add_argument('-n', '--name', help='Name of VV to export', required=True)
@@ -282,6 +285,18 @@ def getVVSize(cl, args):
         print vv.get('snapshotSpace').get('usedMiB')
     elif args.type == 'VSIZE':
         print vv.get('sizeMiB')
+
+
+def getAllVVSize(cl, args):
+    vvs = cl.getVolumes()
+
+    for vv in vvs.get('members'):
+        print '{name} {used} {snap}'.format(
+            name=vv.get('name'),
+            used=vv.get('userSpace').get('usedMiB'),
+            snap=vv.get('snapshotSpace').get('usedMiB')
+        )
+
 
 def exportVV(cl, args):
     name = args.name

@@ -85,6 +85,30 @@ done < <(oneimage list -x| $XPATH \
 VMS=($(echo "${XPATH_ELEMENTS[0]}" | tr " " "\n" | sort | uniq))
 VMXML=$(onevm list --extended -x)
 
+DISKS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getAllVVSize -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
+                                                                    -p $PASSWORD)
+
+if [ $? -ne 0 ]; then
+  error_message "$DISKS"
+  exit 1
+fi
+
+function searchDisk {
+  while IFS= read -r R; do
+    R=($R)
+    DISK_NAME=${R[0]}
+
+    if [ "$1" == "$DISK_NAME" ]; then
+      if [ "$2" == "USED" ]; then
+        echo ${R[1]}
+      fi
+      if [ "$2" == "SNAP" ]; then
+        echo ${R[2]}
+      fi
+    fi
+  done <<< "$DISKS"
+}
+
 for VMID in ${VMS[@]}; do
   echo -n "VM=[ID=$VMID,POLL=\""
 
@@ -100,13 +124,7 @@ for VMID in ${VMS[@]}; do
       DISK=$(get_vv_name "$SOURCE")
     fi
 
-    diskSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                    -p $PASSWORD -n $DISK -t USED)
-
-    if [ $? -ne 0 ]; then
-      error_message "VM: $VMID Disk: $DISK Error: $diskSize"
-      exit 1
-    fi
+    diskSize=$(searchDisk "$DISK" "USED")
 
     echo -n "DISK_SIZE=[ID=${DISK_ID},SIZE=${diskSize}] "
 
@@ -114,18 +132,12 @@ for VMID in ${VMS[@]}; do
     while IFS= read -r SNAP_ID; do
       SNAP="$DISK.$SNAP_ID"
 
-      snapSize=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVVSize -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                        -p $PASSWORD -n $SNAP -t SNAP)
-
-      if [ $? -ne 0 ]; then
-        error_message "VM: $VMID Disk: $DISK Snap: $SNAP Error: $snapSize"
-        exit 1
-      fi
+      snapSize=$(searchDisk "$SNAP" "SNAP")
 
       echo -n "SNAPSHOT_SIZE=[ID=${SNAP_ID},DISK_ID=${DISK_ID},SIZE=${snapSize}] "
-    done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID]/SNAPSHOTS[DISK_ID=$DISK_ID]/SNAPSHOT" -v "ID" -n)
+    done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID][HISTORY_RECORDS/HISTORY/DS_ID=$DS_ID]/SNAPSHOTS[DISK_ID=$DISK_ID]/SNAPSHOT" -v "ID" -n)
 
-  done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID]/TEMPLATE/DISK" -v "DISK_ID" -o " " --if "CLONE" -v "CLONE" -o " " --else -o "NO " -b --if "SOURCE" -v "SOURCE" --else -o "EMPTY" -b -n )
+  done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID][HISTORY_RECORDS/HISTORY/DS_ID=$DS_ID]/TEMPLATE/DISK" -v "DISK_ID" -o " " --if "CLONE" -v "CLONE" -o " " --else -o "NO " -b --if "SOURCE" -v "SOURCE" --else -o "EMPTY" -b -n )
   
   echo "\"]"
   
