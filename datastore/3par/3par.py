@@ -291,10 +291,9 @@ def getAllVVSize(cl, args):
     vvs = cl.getVolumes()
 
     for vv in vvs.get('members'):
-        print '{name} {used} {snap}'.format(
+        print '{name} {used}'.format(
             name=vv.get('name'),
-            used=vv.get('userSpace').get('usedMiB'),
-            snap=vv.get('snapshotSpace').get('usedMiB')
+            used=vv.get('userSpace').get('usedMiB')
         )
 
 

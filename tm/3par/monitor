@@ -49,14 +49,12 @@ unset i XPATH_ELEMENTS
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/ID \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE \
                     /DS_DRIVER_ACTION_DATA/MONITOR_VM_DISKS)
 
 CPG="${XPATH_ELEMENTS[0]:-$CPG}"
-DSID="${XPATH_ELEMENTS[1]}"
-NAMING_TYPE="${XPATH_ELEMENTS[2]:-$NAMING_TYPE}"
-MONITOR_VM_DISKS="${XPATH_ELEMENTS[3]}"
+NAMING_TYPE="${XPATH_ELEMENTS[1]:-$NAMING_TYPE}"
+MONITOR_VM_DISKS="${XPATH_ELEMENTS[2]}"
 
 # ------------ Compute datastore usage -------------
 
@@ -99,12 +97,7 @@ function searchDisk {
     DISK_NAME=${R[0]}
 
     if [ "$1" == "$DISK_NAME" ]; then
-      if [ "$2" == "USED" ]; then
-        echo ${R[1]}
-      fi
-      if [ "$2" == "SNAP" ]; then
-        echo ${R[2]}
-      fi
+      echo ${R[1]}
     fi
   done <<< "$DISKS"
 }
@@ -124,20 +117,14 @@ for VMID in ${VMS[@]}; do
       DISK=$(get_vv_name "$SOURCE")
     fi
 
-    diskSize=$(searchDisk "$DISK" "USED")
+    diskSize=$(searchDisk "$DISK")
 
     echo -n "DISK_SIZE=[ID=${DISK_ID},SIZE=${diskSize}] "
 
-    # snapshots
-    while IFS= read -r SNAP_ID; do
-      SNAP="$DISK.$SNAP_ID"
+    # snapshots section removed
+    # snapshots on 3par with our opennebula integration always use zero space
 
-      snapSize=$(searchDisk "$SNAP" "SNAP")
-
-      echo -n "SNAPSHOT_SIZE=[ID=${SNAP_ID},DISK_ID=${DISK_ID},SIZE=${snapSize}] "
-    done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID][HISTORY_RECORDS/HISTORY/DS_ID=$DSID]/SNAPSHOTS[DISK_ID=$DISK_ID]/SNAPSHOT" -v "ID" -n)
-
-  done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID][HISTORY_RECORDS/HISTORY/DS_ID=$DSID]/TEMPLATE/DISK" -v "DISK_ID" -o " " --if "CLONE" -v "CLONE" -o " " --else -o "NO " -b --if "SOURCE" -v "SOURCE" --else -o "EMPTY" -b -n )
+  done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID][HISTORY_RECORDS/HISTORY/DS_ID=$ID]/TEMPLATE/DISK" -v "DISK_ID" -o " " --if "CLONE" -v "CLONE" -o " " --else -o "NO " -b --if "SOURCE" -v "SOURCE" --else -o "EMPTY" -b -n )
   
   echo "\"]"
   
