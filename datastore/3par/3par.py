@@ -48,6 +48,9 @@ commonParser.add_argument('-sd', '--softDelete', help='Soft-delete volumes/snaps
 # MonitorCPG task parser
 monitorCPGParser = subparsers.add_parser('monitorCPG', parents=[commonParser], help='Get CPG Available Space')
 monitorCPGParser.add_argument('-c', '--cpg', help='CPG Name', required=True)
+monitorCPGParser.add_argument('-d', '--disks', help='Return disks info', type=boolarg, default=False)
+monitorCPGParser.add_argument('-di', '--datastoreId', help='DS ID', type=int)
+monitorCPGParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
 
 # CreateVV task parser
 createVVParser = subparsers.add_parser('createVV', parents=[commonParser], help='Create new VV')
@@ -101,9 +104,6 @@ getVVSizeParser = subparsers.add_parser('getVVSize', parents=[commonParser], hel
 getVVSizeParser.add_argument('-n', '--name', help='Name of VV', required=True)
 getVVSizeParser.add_argument('-t', '--type', help='Type of size to get', choices=['USED', 'SNAP', 'VSIZE'],
                              required=True)
-
-# getAllVVSize task parser
-getAllVVSizeParser = subparsers.add_parser('getAllVVSize', parents=[commonParser], help='Get sizes of all VVs')
 
 # ExportVV task parser
 exportVVParser = subparsers.add_parser('exportVV', parents=[commonParser], help='Export VV to host')
@@ -237,6 +237,39 @@ def monitorCPG(cl, args):
     print 'TOTAL_MB={total}'.format(total=total)
     print 'FREE_MB={free}'.format(free=free)
 
+    if args.disks == True:
+      import subprocess
+      import xmltodict
+      
+      vvs = cl.getVolumes()
+      diskSizes = {}
+
+      for vv in vvs.get('members'):
+        diskSizes[vv.get('name')] = vv.get('userSpace').get('usedMiB')
+      
+      vmsXml = subprocess.check_output('onevm list --extended -x', shell=True)
+      vms = xmltodict.parse(vmsXml)
+      for vm in vms.get('VM_POOL')['VM']:
+        if args.datastoreId != int(vm.get('HISTORY_RECORDS')['HISTORY'].get('DS_ID')):
+          continue
+        
+        result = 'VM=[ID={vmId},POLL="'.format(vmId=vm.get('ID'))
+        
+        disks = vm.get('TEMPLATE').get('DISK')
+        if isinstance(disks,dict):
+          disks = [disks]
+
+        diskResult = []
+        for disk in disks:
+          if disk.get('CLONE') == 'YES' or disk.get('SOURCE') == '':
+            name = '{namingType}.one.vm.{vmId}.{diskId}.vv'.format(namingType=args.namingType, vmId=vm.get('ID'), diskId=disk.get('DISK_ID'))
+          else:
+            source = disk.get('SOURCE').split(':')
+            name = source[0]
+          diskResult.append('DISK_SIZE=[ID={diskId},SIZE={diskSize}]'.format(diskId=disk.get('DISK_ID'), diskSize=diskSizes[name]))
+       
+        print result + ' '.join(diskResult) + '"]'
+
 def createVV(cl, args):
     name = createVVName(args.namingType, args.id)
 
@@ -285,17 +318,6 @@ def getVVSize(cl, args):
         print vv.get('snapshotSpace').get('usedMiB')
     elif args.type == 'VSIZE':
         print vv.get('sizeMiB')
-
-
-def getAllVVSize(cl, args):
-    vvs = cl.getVolumes()
-
-    for vv in vvs.get('members'):
-        print '{name} {used}'.format(
-            name=vv.get('name'),
-            used=vv.get('userSpace').get('usedMiB')
-        )
-
 
 def exportVV(cl, args):
     name = args.name

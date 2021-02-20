@@ -58,74 +58,9 @@ MONITOR_VM_DISKS="${XPATH_ELEMENTS[2]}"
 
 # ------------ Compute datastore usage -------------
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -c $CPG
+python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -c $CPG -nt $NAMING_TYPE -di $ID -d $MONITOR_VM_DISKS
 
 if [ $? -ne 0 ]; then
   error_message "Error monitoring CPG"
   exit 1
 fi
-
-# exit if monitor vm disks is not required
-if [ $MONITOR_VM_DISKS -ne 1 ]; then
-  exit 0
-fi
-
-# Get images
-XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
-
-unset i XPATH_ELEMENTS
-
-while IFS= read -r -d '' element; do
-    XPATH_ELEMENTS[i++]="$element"
-done < <(oneimage list -x| $XPATH \
-                    %m%/IMAGE_POOL/IMAGE/VMS/ID)
-
-VMS=($(echo "${XPATH_ELEMENTS[0]}" | tr " " "\n" | sort | uniq))
-VMXML=$(onevm list --extended -x)
-
-DISKS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getAllVVSize -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                    -p $PASSWORD)
-
-if [ $? -ne 0 ]; then
-  error_message "$DISKS"
-  exit 1
-fi
-
-function searchDisk {
-  while IFS= read -r R; do
-    R=($R)
-    DISK_NAME=${R[0]}
-
-    if [ "$1" == "$DISK_NAME" ]; then
-      echo ${R[1]}
-    fi
-  done <<< "$DISKS"
-}
-
-for VMID in ${VMS[@]}; do
-  echo -n "VM=[ID=$VMID,POLL=\""
-
-  while IFS= read -r ROW; do
-    ROW=($ROW)
-    DISK_ID=${ROW[0]}
-    CLONE=${ROW[1]}
-    SOURCE=${ROW[2]}
-
-    if [ "${CLONE}" == "YES" ] || ([ "${CLONE}" == "NO" ] && [ "${SOURCE}" == "EMPTY" ]); then
-      DISK="$NAMING_TYPE.one.vm.$VMID.${DISK_ID}.vv"
-    else
-      DISK=$(get_vv_name "$SOURCE")
-    fi
-
-    diskSize=$(searchDisk "$DISK")
-
-    echo -n "DISK_SIZE=[ID=${DISK_ID},SIZE=${diskSize}] "
-
-    # snapshots section removed
-    # snapshots on 3par with our opennebula integration always use zero space
-
-  done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID][HISTORY_RECORDS/HISTORY/DS_ID=$ID]/TEMPLATE/DISK" -v "DISK_ID" -o " " --if "CLONE" -v "CLONE" -o " " --else -o "NO " -b --if "SOURCE" -v "SOURCE" --else -o "EMPTY" -b -n )
-  
-  echo "\"]"
-  
-done
