@@ -135,9 +135,9 @@ for VMID in ${VMS[@]}; do
       snapSize=$(searchDisk "$SNAP" "SNAP")
 
       echo -n "SNAPSHOT_SIZE=[ID=${SNAP_ID},DISK_ID=${DISK_ID},SIZE=${snapSize}] "
-    done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID][HISTORY_RECORDS/HISTORY/DS_ID=$DS_ID]/SNAPSHOTS[DISK_ID=$DISK_ID]/SNAPSHOT" -v "ID" -n)
+    done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID][HISTORY_RECORDS/HISTORY/DS_ID=$DSID]/SNAPSHOTS[DISK_ID=$DISK_ID]/SNAPSHOT" -v "ID" -n)
 
-  done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID][HISTORY_RECORDS/HISTORY/DS_ID=$DS_ID]/TEMPLATE/DISK" -v "DISK_ID" -o " " --if "CLONE" -v "CLONE" -o " " --else -o "NO " -b --if "SOURCE" -v "SOURCE" --else -o "EMPTY" -b -n )
+  done < <(echo "$VMXML"| xmlstarlet sel -t -m "//VM[ID=$VMID][HISTORY_RECORDS/HISTORY/DS_ID=$DSID]/TEMPLATE/DISK" -v "DISK_ID" -o " " --if "CLONE" -v "CLONE" -o " " --else -o "NO " -b --if "SOURCE" -v "SOURCE" --else -o "EMPTY" -b -n )
   
   echo "\"]"
   
