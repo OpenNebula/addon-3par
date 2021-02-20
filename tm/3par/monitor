@@ -104,7 +104,7 @@ for VMID in ${VMS[@]}; do
                                                                     -p $PASSWORD -n $DISK -t USED)
 
     if [ $? -ne 0 ]; then
-      error_message "$diskSize"
+      error_message "VM: $VMID Disk: $DISK Error: $diskSize"
       exit 1
     fi
 
@@ -118,8 +118,7 @@ for VMID in ${VMS[@]}; do
                                                                         -p $PASSWORD -n $SNAP -t SNAP)
 
       if [ $? -ne 0 ]; then
-        echo $SNAP
-        error_message "$snapSize"
+        error_message "VM: $VMID Disk: $DISK Snap: $SNAP Error: $snapSize"
         exit 1
       fi
 
