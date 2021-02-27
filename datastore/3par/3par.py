@@ -197,29 +197,45 @@ hostExistsParser = subparsers.add_parser('hostExists', parents=[commonParser],
                                          help='Check if host with this name is registered')
 hostExistsParser.add_argument('-hs', '--host', help='Name of host', required=True)
 
-# CreateQosPolicyVVSet task parser
-createQosPolicyVVSetParser = subparsers.add_parser('createQosPolicyVVSet', parents=[commonParser],
-                                              help='Create QoS policy using VV set for VM')
-createQosPolicyVVSetParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
+# AddVolumeToVVSet task parser
+addVolumeToVVSetParser = subparsers.add_parser('addVolumeToVVSet', parents=[commonParser],
+                                              help='Add volume to VM VV set. If VV set not exists, it creates new one')
+addVolumeToVVSetParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
                                    default='dev')
-createQosPolicyVVSetParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
-createQosPolicyVVSetParser.add_argument('-n', '--name', help='Name of VV', required=True)
-createQosPolicyVVSetParser.add_argument('-qp', '--qosPriority', help='QoS Priority', choices=['LOW', 'NORMAL', 'HIGH'],
-                                        required=True)
-createQosPolicyVVSetParser.add_argument('-qxi', '--qosMaxIops', help='QoS Max IOPS', type=int, required=True)
-createQosPolicyVVSetParser.add_argument('-qmi', '--qosMinIops', help='QoS Min IOPS', type=int, required=True)
-createQosPolicyVVSetParser.add_argument('-qxb', '--qosMaxBw', help='QoS Max BW in kB/s', type=int, required=True)
-createQosPolicyVVSetParser.add_argument('-qmb', '--qosMinBw', help='QoS Min BW in kB/s', type=int, required=True)
-createQosPolicyVVSetParser.add_argument('-ql', '--qosLatency', help='QoS Latency in ms', type=int, required=True)
-createQosPolicyVVSetParser.add_argument('-co', '--comment', help='Comment')
+addVolumeToVVSetParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
+addVolumeToVVSetParser.add_argument('-n', '--name', help='Name of VV', required=True)
+addVolumeToVVSetParser.add_argument('-co', '--comment', help='Comment')
 
-# DeleteQosPolicyVVSet task parser
-deleteQosPolicyVVSetParser = subparsers.add_parser('deleteQosPolicyVVSet', parents=[commonParser],
-                                              help='Create QoS policy using VV set for VM')
-deleteQosPolicyVVSetParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
+# DeleteVolumeFromVVSet task parser
+deleteVolumeFromVVSetParser = subparsers.add_parser('deleteVolumeFromVVSet', parents=[commonParser],
+                                        help='Delete volume from VM VV set. If it is last member, it deletes VV set')
+deleteVolumeFromVVSetParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
                                    default='dev')
-deleteQosPolicyVVSetParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
-deleteQosPolicyVVSetParser.add_argument('-n', '--name', help='Name of VV', required=True)
+deleteVolumeFromVVSetParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
+deleteVolumeFromVVSetParser.add_argument('-n', '--name', help='Name of VV', required=True)
+
+# CreateQosPolicy task parser
+createQosPolicyParser = subparsers.add_parser('createQosPolicy', parents=[commonParser],
+                                              help='Create QoS policy on VM VV set')
+createQosPolicyParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
+                                   default='dev')
+createQosPolicyParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
+createQosPolicyParser.add_argument('-n', '--name', help='Name of VV', required=True)
+createQosPolicyParser.add_argument('-qp', '--qosPriority', help='QoS Priority', choices=['LOW', 'NORMAL', 'HIGH'],
+                                        required=True)
+createQosPolicyParser.add_argument('-qxi', '--qosMaxIops', help='QoS Max IOPS', type=int, required=True)
+createQosPolicyParser.add_argument('-qmi', '--qosMinIops', help='QoS Min IOPS', type=int, required=True)
+createQosPolicyParser.add_argument('-qxb', '--qosMaxBw', help='QoS Max BW in kB/s', type=int, required=True)
+createQosPolicyParser.add_argument('-qmb', '--qosMinBw', help='QoS Min BW in kB/s', type=int, required=True)
+createQosPolicyParser.add_argument('-ql', '--qosLatency', help='QoS Latency in ms', type=int, required=True)
+
+# DeleteQosPolicy task parser
+deleteQosPolicyParser = subparsers.add_parser('deleteQosPolicy', parents=[commonParser],
+                                              help='Delete QoS policy from VM VV set')
+deleteQosPolicyParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
+                                   default='dev')
+deleteQosPolicyParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
+deleteQosPolicyParser.add_argument('-n', '--name', help='Name of VV', required=True)
 
 # ------------
 # Define tasks
@@ -511,7 +527,7 @@ def hostExists(cl, args):
         return
     print 1
 
-def createQosPolicyVVSet(cl, args):
+def addVolumeToVVSet(cl, args):
     vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
 
     # get or create vvset
@@ -526,6 +542,38 @@ def createQosPolicyVVSet(cl, args):
         cl.addVolumeToVolumeSet(vvsetName, args.name)
     except exceptions.HTTPConflict as ex:
         print 'VV already mapped to VV Set'
+
+
+def deleteVolumeFromVVSet(cl, args):
+    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+
+    # remove volume from volume set
+    try:
+        cl.removeVolumeFromVolumeSet(vvsetName, args.name)
+    except exceptions.HTTPNotFound:
+        print 'Volume is already removed from vv set'
+
+    # get volume set info
+    try:
+        vvset = cl.getVolumeSet(vvsetName)
+        members = vvset.get('setmembers')
+    except exceptions.HTTPNotFound:
+        print 'Volume set does not exits, exiting...'
+        return
+
+    # if there are other members them we do not remove VV Set
+    if members and len(members) > 0:
+        return
+
+    # delete vv set
+    try:
+        cl.deleteVolumeSet(vvsetName)
+    except exceptions.HTTPNotFound:
+        print 'VV Set already does not exits'
+
+
+def createQosPolicy(cl, args):
+    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
 
     # create QoS policy if not exists
     qosRules = prepareQosRules(args)
@@ -544,14 +592,9 @@ def createQosPolicyVVSet(cl, args):
         print 'QoS Policy does not exists, create new'
         cl.createQoSRules(vvsetName, qosRules)
 
-def deleteQosPolicyVVSet(cl, args):
-    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
 
-    # remove volume from volume set
-    try:
-        cl.removeVolumeFromVolumeSet(vvsetName, args.name)
-    except exceptions.HTTPNotFound:
-        print 'Volume is already removed from vv set'
+def deleteQosPolicy(cl, args):
+    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
 
     # get volume set info
     try:
@@ -561,7 +604,7 @@ def deleteQosPolicyVVSet(cl, args):
         print 'Volume set does not exits, exiting...'
         return
 
-    # if there are other members them we do not remove QoS Policy and VV Set
+    # if there are other members them we do not remove QoS Policy
     if members and len(members) > 0:
         return
 
@@ -571,11 +614,6 @@ def deleteQosPolicyVVSet(cl, args):
     except exceptions.HTTPNotFound:
         print 'QoS Policy already does not exits'
 
-    # delete vv set
-    try:
-        cl.deleteVolumeSet(vvsetName)
-    except exceptions.HTTPNotFound:
-        print 'VV Set already does not exits'
 
 # ----------------
 # Helper functions

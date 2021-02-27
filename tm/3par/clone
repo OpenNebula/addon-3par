@@ -135,11 +135,20 @@ fi
 NEW_NAME=$(get_vv_name "$NEW_NAME_WWN")
 NEW_WWN=$(get_vv_wwn "$NEW_NAME_WWN")
 
+log "Add disk to VM VV Set"
+VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
+                    -nt $NAMING_TYPE -n $NEW_NAME -vi $VMID -co "$VM_NAME")
+
+if [ $? -ne 0 ]; then
+  error_message "$VVSET"
+  exit 1
+fi
+
 if [ "$QOS_ENABLE" == "YES" ]; then
     log "Create QoS Policy"
-    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicyVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
+    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                         -nt $NAMING_TYPE -n $NEW_NAME -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS \
-                        -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY -co "$VM_NAME")
+                        -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY)
 
     if [ $? -ne 0 ]; then
       error_message "$QOS"

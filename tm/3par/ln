@@ -122,9 +122,18 @@ QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
 # Start actions
 #-------------------------------------------------------------------------------
 
+log "Add disk to VM VV Set"
+VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
+                    -nt $NAMING_TYPE -n $NAME -vi $VMID)
+
+if [ $? -ne 0 ]; then
+  error_message "$VVSET"
+  exit 1
+fi
+
 if [ "$QOS_ENABLE" == "YES" ]; then
     log "Create QoS Policy"
-    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicyVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
+    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                         -nt $NAMING_TYPE -n $NAME -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS \
                         -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY)
 
