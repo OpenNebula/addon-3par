@@ -130,3 +130,20 @@ function remove_lun {
       done
 EOF
 }
+
+#Return VM STATE
+function vm_state
+{
+    XPATH="${ONE_LOCAL_VAR}/remotes/datastore/xpath.rb --stdin"
+
+    unset i XPATH_ELEMENTS
+
+    while IFS= read -r -d '' element; do
+        XPATH_ELEMENTS[i++]="$element"
+    done < <(onevm show -x "${1:-$VMID}" | $XPATH \
+                        /VM/STATE )
+
+    VM_STATE="${XPATH_ELEMENTS[0]}"
+
+    echo $VM_STATE
+}

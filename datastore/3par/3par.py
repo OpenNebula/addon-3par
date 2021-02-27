@@ -156,6 +156,20 @@ deleteVmCloneParser.add_argument('-nt', '--namingType', help='Best practices Nam
 deleteVmCloneParser.add_argument('-id', '--id', help='ID of VM disk', required=True)
 deleteVmCloneParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
 
+# CreateVVSetSnapshot task parser
+createVVSetSnapshotParser = subparsers.add_parser('createVVSetSnapshot', parents=[commonParser], help='Create snapshot of volume set')
+createVVSetSnapshotParser.add_argument('-nt', '--namingType', help='Source: Best practices Naming conventions <TYPE> part',
+                                  default='dev')
+createVVSetSnapshotParser.add_argument('-vi', '--vmId', help='Id of VM')
+createVVSetSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+
+# DeleteVVSetSnapshot task parser
+deleteVVSetSnapshotParser = subparsers.add_parser('deleteVVSetSnapshot', parents=[commonParser], help='Delete volume set snapshot')
+deleteVVSetSnapshotParser.add_argument('-nt', '--namingType', help='Source: Best practices Naming conventions <TYPE> part',
+                                  default='dev')
+deleteVVSetSnapshotParser.add_argument('-vi', '--vmId', help='Id of VM')
+deleteVVSetSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+
 # CreateSnapshot task parser
 createSnapshotParser = subparsers.add_parser('createSnapshot', parents=[commonParser], help='Create snapshot of VV')
 createSnapshotParser.add_argument('-nt', '--namingType', help='Source: Best practices Naming conventions <TYPE> part',
@@ -426,6 +440,82 @@ def deleteVmClone(cl, args):
     name = createVmCloneName(args.namingType, args.id, args.vmId)
 
     deleteVVWithName(cl, name)
+
+
+def createVVSetSnapshot(cl, args):
+    snapId = 's{snapId}'.format(snapId=args.snapId)
+    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+
+    # get volume set info
+    try:
+        vvset = cl.getVolumeSet(vvsetName)
+        members = vvset.get('setmembers')
+    except exceptions.HTTPNotFound:
+        print 'Volume set does not exits, exiting...'
+        return
+
+    # no members in volume set? unexpected
+    if not members or not len(members) > 0:
+        print 'Volume set has no members, exiting...'
+        return
+
+    # check for soft deleted snapshot
+    if args.softDelete:
+        for member in members:
+            snapName, metaKey = createSnapshotNameAndMetaKey(member, snapId)
+            try:
+                cl.getVolume(snapName)
+                # snap exists, so delete it
+                cl.deleteVolume(snapName)
+            except exceptions.HTTPNotFound:
+                pass
+
+    # prepare snapshot vv name pattern
+    name = '@vvname@.{snapId}'.format(snapId=snapId)
+
+    # create snapshots
+    cl.createSnapshotOfVolumeSet(name, vvsetName, {'readOnly': True})
+
+    # create and add snapshot metadata to all members
+    for member in members:
+        snapName, metaKey = createSnapshotNameAndMetaKey(member, snapId)
+        cl.setVolumeMetaData(member, metaKey, snapName)
+
+    print args.snapId
+
+
+def deleteVVSetSnapshot(cl, args):
+    snapId = 's{snapId}'.format(snapId=args.snapId)
+    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+
+    # get volume set info
+    try:
+        vvset = cl.getVolumeSet(vvsetName)
+        members = vvset.get('setmembers')
+    except exceptions.HTTPNotFound:
+        print 'Volume set does not exits, exiting...'
+        return
+
+    # no members in volume set? unexpected
+    if not members or not len(members) > 0:
+        print 'Volume set has no members, exiting...'
+        return
+
+    # iterate over volumes and find snapshots to delete
+    for member in members:
+        name, metaKey = createSnapshotNameAndMetaKey(member, snapId)
+
+        if args.softDelete:
+            cl.modifyVolume(name, {'expirationHours': 168})
+        else:
+            cl.deleteVolume(name)
+
+        try:
+            cl.removeVolumeMetaData(member, metaKey)
+        except exceptions.HTTPNotFound:
+            pass
+
+
 
 def createSnapshot(cl, args):
     snapId = args.snapId
