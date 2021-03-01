@@ -40,6 +40,9 @@ source ${DRIVER_PATH}/../../etc/vmm/kvm/kvmrc
 source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 . ${DRIVER_PATH}/../../datastore/3par/scripts_3par.sh
 
+# get VM lcm state
+LCM_STATE=`lcm_state`
+
 #-------------------------------------------------------------------------------
 # Get VM information
 #-------------------------------------------------------------------------------
@@ -66,15 +69,18 @@ done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE
 
 NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
 
-LIBVIRT_URI="${QEMU_PROTOCOL}://${HOST}/system"
+# Live snapshoting only if lcm state is HOTPLUG_SNAPSHOT
+if [ $LCM_STATE -eq 24 ]; then
+    LIBVIRT_URI="${QEMU_PROTOCOL}://${HOST}/system"
 
-if virsh -c $LIBVIRT_URI domfsfreeze $DEPLOY_ID > /dev/null 2>&1 ; then
-    trap "virsh -c $LIBVIRT_URI domfsthaw $DEPLOY_ID" EXIT TERM INT HUP
-elif virsh -c $LIBVIRT_URI suspend $DEPLOY_ID > /dev/null 2>&1 ; then
-    trap "virsh -c $LIBVIRT_URI resume $DEPLOY_ID" EXIT TERM INT HUP
-else
-    error_message "Could not domfsfreeze or suspend domain"
-    exit 1
+    if virsh -c $LIBVIRT_URI domfsfreeze $DEPLOY_ID > /dev/null 2>&1 ; then
+        trap "virsh -c $LIBVIRT_URI domfsthaw $DEPLOY_ID" EXIT TERM INT HUP
+    elif virsh -c $LIBVIRT_URI suspend $DEPLOY_ID > /dev/null 2>&1 ; then
+        trap "virsh -c $LIBVIRT_URI resume $DEPLOY_ID" EXIT TERM INT HUP
+    else
+        error_message "Could not domfsfreeze or suspend domain"
+        exit 1
+    fi
 fi
 
 python ${DRIVER_PATH}/../../datastore/3par/3par.py createVVSetSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \

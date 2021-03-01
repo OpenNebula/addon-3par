@@ -39,14 +39,6 @@ source $TMCOMMON
 source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 . ${DRIVER_PATH}/../../datastore/3par/scripts_3par.sh
 
-# get VM state
-VM_STATE=`vm_state`
-
-if [ $VM_STATE -ne 8 ] && [ $VM_STATE -ne 9 ]; then
-    error_message "Could not revert snapshot if VM state is not POWEROFF or UNDEPLOYED!"
-    exit 1
-fi
-
 #-------------------------------------------------------------------------------
 # Get All VM Images and execute TM snap_revert action
 #-------------------------------------------------------------------------------

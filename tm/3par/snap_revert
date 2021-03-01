@@ -43,8 +43,13 @@ source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 SRC_PATH=$(arg_path $SRC)
 SRC_HOST=$(arg_host $SRC)
 
-# get VM state
-VM_STATE=`vm_state`
+# get VM lcm state
+LCM_STATE=`lcm_state`
+ONLINE=0
+# DISK_SNAPSHOT_REVERT_POWEROFF DISK_SNAPSHOT_REVERT_SUSPENDED HOTPLUG_SNAPSHOT_POWEROFF
+if [ $LCM_STATE -eq 52 ] || [ $LCM_STATE -eq 55 ] || [ $LCM_STATE -eq 100 ]; then
+    ONLINE=1
+fi
 
 #-------------------------------------------------------------------------------
 # Get Image information
@@ -106,58 +111,12 @@ fi
 NAME=$(get_vv_name "$NAME_WWN")
 WWN=$(get_vv_wwn "$NAME_WWN")
 
-# no need to flush and unexport if VM state is UNDEPLOYED
-if [ $VM_STATE -ne 9 ]; then
-    # Flush and unexport
-    FLUSH_CMD=$(cat <<EOF
-        set -e
-        $(remove_lun "$WWN")
-EOF
-)
-
-    log "Unmapping $WWN from $SRC_HOST"
-
-    ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
-        "Error flushing out mapping"
-
-    python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                  -p $PASSWORD -n $NAME -hs $SRC_HOST
-
-    if [ $? -ne 0 ]; then
-      error_message "Error unexporting VV"
-      exit 1
-    fi
-fi
-
 # revert snapshot
 log "Reverting snapshot $SNAP_ID"
 python ${DRIVER_PATH}/../../datastore/3par/3par.py revertSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                      -p $PASSWORD -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID -vc $CLONE
+                              -p $PASSWORD -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID -vc $CLONE -o $ONLINE
 
 if [ $? -ne 0 ]; then
   error_message "Error promoting snapshot back to VV"
   exit 1
-fi
-
-# no need to export and discover if VM state is UNDEPLOYED
-if [ $VM_STATE -ne 9 ]; then
-    # exportVV back and discover
-    log "Mapping $NAME_WWN to $SRC_HOST"
-
-    LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                      -p $PASSWORD -n $NAME -hs $SRC_HOST)
-
-    if [ $? -ne 0 ]; then
-      error_message "$LUN"
-      exit 1
-    fi
-
-    DISCOVER_CMD=$(cat <<EOF
-        set -e
-        $(discover_lun "$LUN" "$WWN")
-EOF
-)
-
-    ssh_exec_and_log "$SRC_HOST" "$DISCOVER_CMD" \
-        "Error registering $NAME_WWN to $SRC_HOST"
 fi
