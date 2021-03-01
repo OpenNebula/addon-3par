@@ -58,7 +58,8 @@ MONITOR_VM_DISKS="${XPATH_ELEMENTS[2]}"
 
 # ------------ Compute datastore usage -------------
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -c $CPG -nt $NAMING_TYPE -di $ID -d $MONITOR_VM_DISKS
+python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
+                                                  -p $PASSWORD -c $CPG -nt $NAMING_TYPE -di $ID -d $MONITOR_VM_DISKS
 
 if [ $? -ne 0 ]; then
   error_message "Error monitoring CPG"
