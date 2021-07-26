@@ -291,7 +291,7 @@ def monitorCPG(cl, args):
 
         diskResult = []
         for disk in disks:
-          if disk.get('CLONE') == 'YES' or disk.get('SOURCE') == '':
+          if disk.get('CLONE') == 'YES' or disk.get('SOURCE') is None or disk.get('SOURCE') == '':
             name = '{namingType}.one.vm.{vmId}.{diskId}.vv'.format(namingType=args.namingType, vmId=vm.get('ID'), diskId=disk.get('DISK_ID'))
           else:
             source = disk.get('SOURCE').split(':')
