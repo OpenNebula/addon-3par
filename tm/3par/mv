@@ -126,8 +126,8 @@ CLONE="${XPATH_ELEMENTS[2]}"
 PERSISTENT="${XPATH_ELEMENTS[3]}"
 SYS_DSID="${XPATH_ELEMENTS[4]}"
 
-# Disk os clone, so copy was created
-if [ "$CLONE" == "YES" ]; then
+# Disk os clone or volatile, so copy was created
+if [ "$CLONE" = "YES" ] || [ -z "$NAME_WWN" ]; then
   #-------------------------------------------------------------------------------
   # Get system ds information
   #-------------------------------------------------------------------------------
