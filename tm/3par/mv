@@ -109,7 +109,7 @@ DISK_ID=$(echo "$DST_PATH" | $AWK -F. '{print $NF}')
 
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
@@ -120,11 +120,28 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-NAME_WWN="${XPATH_ELEMENTS[0]}"
-IMAGE_ID="${XPATH_ELEMENTS[1]}"
-CLONE="${XPATH_ELEMENTS[2]}"
-PERSISTENT="${XPATH_ELEMENTS[3]}"
-SYS_DSID="${XPATH_ELEMENTS[4]}"
+NAME_WWN="${XPATH_ELEMENTS[j++]}"
+IMAGE_ID="${XPATH_ELEMENTS[j++]}"
+CLONE="${XPATH_ELEMENTS[j++]}"
+PERSISTENT="${XPATH_ELEMENTS[j++]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
+
+#-------------------------------------------------------------------------------
+# Get system ds information
+#-------------------------------------------------------------------------------
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                    /DATASTORE/TEMPLATE/API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/IP \
+                    /DATASTORE/TEMPLATE/NAMING_TYPE)
+
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 
 # Disk os clone or volatile, so copy was created
 if [ "$CLONE" = "YES" ] || [ -z "$NAME_WWN" ]; then
@@ -132,13 +149,17 @@ if [ "$CLONE" = "YES" ] || [ -z "$NAME_WWN" ]; then
   # Get system ds information
   #-------------------------------------------------------------------------------
   
-  unset i XPATH_ELEMENTS
+  unset i j XPATH_ELEMENTS
   
   while IFS= read -r -d '' element; do
       XPATH_ELEMENTS[i++]="$element"
-  done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
-  
-  NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
+  done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                        /DATASTORE/TEMPLATE/API_ENDPOINT \
+                        /DATASTORE/TEMPLATE/IP \
+                        /DATASTORE/TEMPLATE/NAMING_TYPE)
+  API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+  IP="${XPATH_ELEMENTS[j++]:-$IP}"
+  NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
   
   # get VM disk WWN
   NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \

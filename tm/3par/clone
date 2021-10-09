@@ -93,6 +93,8 @@ unset i j XPATH_ELEMENTS
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onedatastore show -x $SYS_DSID| $XPATH \
+                    /DATASTORE/TEMPLATE/API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/IP \
                     /DATASTORE/TEMPLATE/CPG \
                     /DATASTORE/TEMPLATE/THIN \
                     /DATASTORE/TEMPLATE/DEDUP \
@@ -106,6 +108,8 @@ done < <(onedatastore show -x $SYS_DSID| $XPATH \
                     /DATASTORE/TEMPLATE/QOS_MIN_BW \
                     /DATASTORE/TEMPLATE/QOS_LATENCY)
 
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
 CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
 THIN="${XPATH_ELEMENTS[j++]:-$THIN}"
 DEDUP="${XPATH_ELEMENTS[j++]:-$DEDUP}"

@@ -77,13 +77,18 @@ fi
 # Get system ds information
 #-------------------------------------------------------------------------------
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                   /DATASTORE/TEMPLATE/API_ENDPOINT \
+                   /DATASTORE/TEMPLATE/IP \
+                   /DATASTORE/TEMPLATE/NAMING_TYPE)
 
-NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 
 LIBVIRT_URI="${QEMU_PROTOCOL}://${SRC_HOST}/system"
 

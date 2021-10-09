@@ -49,25 +49,30 @@ LCM_STATE=`lcm_state`
 
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onevm show -x $VMID| $XPATH /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-SYS_DSID="${XPATH_ELEMENTS[0]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 #-------------------------------------------------------------------------------
 # Get system ds information
 #-------------------------------------------------------------------------------
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                   /DATASTORE/TEMPLATE/API_ENDPOINT \
+                   /DATASTORE/TEMPLATE/IP \
+                   /DATASTORE/TEMPLATE/NAMING_TYPE)
 
-NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 
 # Live snapshoting only if lcm state is HOTPLUG_SNAPSHOT
 if [ $LCM_STATE -eq 24 ]; then

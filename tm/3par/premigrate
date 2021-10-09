@@ -128,8 +128,13 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
 
             while IFS= read -r -d '' element; do
                 XPATH_ELEMENTS[i++]="$element"
-            done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
+            done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                               /DATASTORE/TEMPLATE/API_ENDPOINT \
+                               /DATASTORE/TEMPLATE/IP \
+                               /DATASTORE/TEMPLATE/NAMING_TYPE)
 
+            API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+            IP="${XPATH_ELEMENTS[j++]:-$IP}"
             NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 
             # get VM disk WWN

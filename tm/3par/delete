@@ -142,9 +142,13 @@ unset i j XPATH_ELEMENTS
 while IFS= read -r -d '' element; do
   XPATH_ELEMENTS[i++]="$element"
 done < <(onedatastore show -x $DSID | $XPATH \
+                        /DATASTORE/TEMPLATE/API_ENDPOINT \
+                        /DATASTORE/TEMPLATE/IP \
                         /DATASTORE/TEMPLATE/NAMING_TYPE \
                         /DATASTORE/TEMPLATE/QOS_ENABLE)
 
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
@@ -159,9 +163,13 @@ if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
     while IFS= read -r -d '' element; do
         XPATH_ELEMENTS[i++]="$element"
     done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                                /DATASTORE/TEMPLATE/API_ENDPOINT \
+                                /DATASTORE/TEMPLATE/IP \
                                 /DATASTORE/TEMPLATE/NAMING_TYPE \
                                 /DATASTORE/TEMPLATE/QOS_ENABLE)
 
+    API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+    IP="${XPATH_ELEMENTS[j++]:-$IP}"
     NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
     QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
