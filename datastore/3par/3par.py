@@ -282,6 +282,8 @@ def monitorCPG(cl, args):
       
       vmsXml = subprocess.check_output('onevm list --extended -x', shell=True)
       vms = xmltodict.parse(vmsXml)
+      if vms['VM_POOL'] is None:
+        return
       for vm in vms.get('VM_POOL')['VM']:
         if args.datastoreId != int(vm.get('HISTORY_RECORDS')['HISTORY'].get('DS_ID')):
           continue
