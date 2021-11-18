@@ -281,7 +281,7 @@ def monitorCPG(cl, args):
         diskSizes[vv.get('name')] = vv.get('userSpace').get('usedMiB')
       
       vmsXml = subprocess.check_output('onevm list --extended -x', shell=True)
-      vms = xmltodict.parse(vmsXml)
+      vms = xmltodict.parse(vmsXml, force_list=('VM',))
       if vms['VM_POOL'] is None:
         return
       for vm in vms.get('VM_POOL')['VM']:
