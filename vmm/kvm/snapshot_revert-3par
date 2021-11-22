@@ -43,29 +43,24 @@ source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 # Get All VM Images and execute TM snap_revert action
 #-------------------------------------------------------------------------------
 
-i=1
-while read line
-do
-    DISK_IDS[$i]="$line"
-    (( i++ ))
-done < <(onevm show $VMID --all | $GREP -w "DISK_ID" | $CUT -d\" -f2)
-
 REVERT_SCRIPT="${DRIVER_PATH}/../../tm/3par/snap_revert"
 
-for j in `seq 1 ${#DISK_IDS[*]}`; do
+DISK_IDS=$(onevm show $VMID -x | ${DRIVER_PATH}/../../datastore/xpath.rb --stdin '%m%/VM/TEMPLATE/DISK/DISK_ID')
+
+for k in $DISK_IDS; do
     XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
-    unset i k XPATH_ELEMENTS
+    unset i j XPATH_ELEMENTS
 
     while IFS= read -r -d '' element; do
         XPATH_ELEMENTS[i++]="$element"
-    done < <(onevm show -x $VMID| $XPATH     /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/TM_MAD \
-                                             /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/DISK_ID \
+    done < <(onevm show -x $VMID| $XPATH     /VM/TEMPLATE/DISK[DISK_ID=$k]/TM_MAD \
+                                             /VM/TEMPLATE/DISK[DISK_ID=$k]/DISK_ID \
                                              /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-    TM_MAD=${XPATH_ELEMENTS[k++]}
-    DISK_ID=${XPATH_ELEMENTS[k++]}
-    SYS_DSID=${XPATH_ELEMENTS[k++]}
+    TM_MAD=${XPATH_ELEMENTS[j++]}
+    DISK_ID=${XPATH_ELEMENTS[j++]}
+    SYS_DSID=${XPATH_ELEMENTS[j++]}
 
     if [ "$TM_MAD" = "3par" ]; then
         $REVERT_SCRIPT "${HOST}:${DATASTORES}/${SYS_DSID}/${VMID}/disk.${DISK_ID}" "s${SNAP_ID}" "${VMID}" 0

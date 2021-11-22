@@ -92,35 +92,30 @@ ssh_exec_and_log "$SRC_HOST" "$TAR_SSH" "Error copying disk directory to target 
 # Discover luns on dst host
 #--------------------------------------------------------------------------------
 
-i=1
-while read line
-do
-    DISK_IDS[$i]="$line"
-    (( i++ ))
-done < <(onevm show $VMID --all | $GREP -w "DISK_ID" | $CUT -d\" -f2)
+DISK_IDS=$(onevm show $VMID -x | ${DRIVER_PATH}/../../datastore/xpath.rb --stdin '%m%/VM/TEMPLATE/DISK/DISK_ID')
 
-for j in `seq 1 ${#DISK_IDS[*]}`; do
+for k in $DISK_IDS; do
     XPATH="${DRIVER_PATH}/../../datastore/xpath.rb -b $TEMPLATE_64"
 
-    unset i k XPATH_ELEMENTS
+    unset i j XPATH_ELEMENTS
 
     while IFS= read -r -d '' element; do
         XPATH_ELEMENTS[i++]="$element"
-    done < <($XPATH     /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/SOURCE \
-                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/TM_MAD \
-                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/CLONE \
-                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/DISK_ID \
-                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/DISK_TYPE \
-                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/DATASTORE_ID \
+    done < <($XPATH     /VM/TEMPLATE/DISK[DISK_ID=$k]/SOURCE \
+                        /VM/TEMPLATE/DISK[DISK_ID=$k]/TM_MAD \
+                        /VM/TEMPLATE/DISK[DISK_ID=$k]/CLONE \
+                        /VM/TEMPLATE/DISK[DISK_ID=$k]/DISK_ID \
+                        /VM/TEMPLATE/DISK[DISK_ID=$k]/DISK_TYPE \
+                        /VM/TEMPLATE/DISK[DISK_ID=$k]/DATASTORE_ID \
                         /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-    NAME_WWN=${XPATH_ELEMENTS[k++]}
-    TM_MAD=${XPATH_ELEMENTS[k++]}
-    CLONE=${XPATH_ELEMENTS[k++]}
-    DISK_ID=${XPATH_ELEMENTS[k++]}
-    DISK_TYPE=${XPATH_ELEMENTS[k++]}
-    IMG_DSID=${XPATH_ELEMENTS[k++]}
-    SYS_DSID=${XPATH_ELEMENTS[k++]}
+    NAME_WWN=${XPATH_ELEMENTS[j++]}
+    TM_MAD=${XPATH_ELEMENTS[j++]}
+    CLONE=${XPATH_ELEMENTS[j++]}
+    DISK_ID=${XPATH_ELEMENTS[j++]}
+    DISK_TYPE=${XPATH_ELEMENTS[j++]}
+    IMG_DSID=${XPATH_ELEMENTS[j++]}
+    SYS_DSID=${XPATH_ELEMENTS[j++]}
 
     if [ "$TM_MAD" = "3par" ]; then
         # if clone or volatile = non-persistent disk
