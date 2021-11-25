@@ -73,7 +73,7 @@ while IFS= read -r -d '' element; do
 done < <(onevm show -x $VMID| $XPATH \
                     /VM/NAME)
 
-VM_NAME="${XPATH_ELEMENTS[j++]}"
+VM_NAME="${XPATH_ELEMENTS[j++]//[^A-Za-z0-9\[\]() _~+-]/}"
 
 #-------------------------------------------------------------------------------
 # Get system ds information

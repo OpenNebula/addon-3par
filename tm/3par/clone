@@ -79,7 +79,7 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/ORIGINAL_SIZE \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-VM_NAME="${XPATH_ELEMENTS[j++]}"
+VM_NAME="${XPATH_ELEMENTS[j++]//[^A-Za-z0-9\[\]() _~+-]/}"
 SIZE="${XPATH_ELEMENTS[j++]}"
 ORIGINAL_SIZE="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
