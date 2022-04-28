@@ -89,6 +89,7 @@ copyVVParser = subparsers.add_parser('copyVV', parents=[commonParser], help='Cop
 copyVVParser.add_argument('-nt', '--namingType', help='Source: Best practices Naming conventions <TYPE> part',
                           default='dev')
 copyVVParser.add_argument('-id', '--id', help='ID of source VV or VM disk', required=True)
+copyVVParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
 copyVVParser.add_argument('-d', '--destName', help='Name of the destination VV', required=True)
 copyVVParser.add_argument('-vi', '--vmId', help='Id of source VV VM')
 copyVVParser.add_argument('-vc', '--vmClone', help='Is VM clone?', type=boolarg, default=False)
@@ -327,10 +328,15 @@ def cloneVV(cl, args):
     print '{name}:{wwn}'.format(name=destName, wwn=wwn)
 
 def copyVV(cl, args):
+  snapId = args.snapId
+
   if args.vmClone == True:
     srcName = createVmCloneName(args.namingType, args.id, args.vmId)
   else:
     srcName = createVVName(args.namingType, args.id)
+
+  if snapId != "-1":
+      srcName, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
 
   optional = {'skipZero': True}
 
