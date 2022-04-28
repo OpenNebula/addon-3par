@@ -56,10 +56,16 @@ CPG="${XPATH_ELEMENTS[0]:-$CPG}"
 NAMING_TYPE="${XPATH_ELEMENTS[1]:-$NAMING_TYPE}"
 MONITOR_VM_DISKS="${XPATH_ELEMENTS[2]}"
 
+if [ -d "${0%/*}/../../im/kvm-probes.d/vm/monitor" ]; then
+    LEGACY_MONITORING=0
+else
+    LEGACY_MONITORING=1
+fi
+
 # ------------ Compute datastore usage -------------
 
 python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                  -p $PASSWORD -c $CPG -nt $NAMING_TYPE -di $ID -d $MONITOR_VM_DISKS
+                                                  -p $PASSWORD -c $CPG -nt $NAMING_TYPE -di $ID -d $MONITOR_VM_DISKS -lf $LEGACY_MONITORING
 
 if [ $? -ne 0 ]; then
   error_message "Error monitoring CPG"

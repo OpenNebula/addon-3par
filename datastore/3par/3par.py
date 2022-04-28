@@ -51,6 +51,7 @@ monitorCPGParser.add_argument('-c', '--cpg', help='CPG Name', required=True)
 monitorCPGParser.add_argument('-d', '--disks', help='Return disks info', type=boolarg, default=False)
 monitorCPGParser.add_argument('-di', '--datastoreId', help='DS ID', type=int)
 monitorCPGParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
+monitorCPGParser.add_argument('-lf', '--legacyFormat', help='Legacy format to support OpenNebula <5.12', type=boolarg, default=False)
 
 # CreateVV task parser
 createVVParser = subparsers.add_parser('createVV', parents=[commonParser], help='Create new VV')
@@ -271,6 +272,7 @@ def monitorCPG(cl, args):
     if args.disks == True:
       import subprocess
       import xmltodict
+      from base64 import b64encode
       
       vvs = cl.getVolumes()
       diskSizes = {}
@@ -284,7 +286,10 @@ def monitorCPG(cl, args):
         if args.datastoreId != int(vm.get('HISTORY_RECORDS')['HISTORY'].get('DS_ID')):
           continue
         
-        result = 'VM=[ID={vmId},POLL="'.format(vmId=vm.get('ID'))
+        if args.legacyFormat:
+          result = 'VM=[ID={vmId},POLL="'.format(vmId=vm.get('ID'))
+        else:
+          result = 'VM=[ID={vmId},MONITOR="'.format(vmId=vm.get('ID'))
         
         disks = vm.get('TEMPLATE').get('DISK')
         if isinstance(disks,dict):
@@ -297,9 +302,14 @@ def monitorCPG(cl, args):
           else:
             source = disk.get('SOURCE').split(':')
             name = source[0]
-          diskResult.append('DISK_SIZE=[ID={diskId},SIZE={diskSize}]'.format(diskId=disk.get('DISK_ID'), diskSize=diskSizes[name]))
+
+          if name in diskSizes:
+            diskResult.append('DISK_SIZE=[ID={diskId},SIZE={diskSize}]'.format(diskId=disk.get('DISK_ID'), diskSize=diskSizes[name]))
        
-        print result + ' '.join(diskResult) + '"]'
+        if args.legacyFormat:
+            print result + ' '.join(diskResult) + '"]'
+        else:
+            print result + b64encode(' '.join(diskResult).encode('ascii')).decode('ascii') + '"]'
 
 def createVV(cl, args):
     name = createVVName(args.namingType, args.id)
