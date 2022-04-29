@@ -89,6 +89,8 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
                         /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/READONLY \
                         /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/IMAGE_ID \
                         /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/DISK_ID \
+                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/DISK_TYPE \
+                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/DATASTORE_ID \
                         /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
     NAME_WWN=${XPATH_ELEMENTS[k++]}
@@ -97,6 +99,8 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
     READONLY=${XPATH_ELEMENTS[k++]}
     IMAGE_ID=${XPATH_ELEMENTS[k++]}
     DISK_ID=${XPATH_ELEMENTS[k++]}
+    DISK_TYPE=${XPATH_ELEMENTS[k++]}
+    IMG_DSID=${XPATH_ELEMENTS[k++]}
     SYS_DSID=${XPATH_ELEMENTS[k++]}
 
     # Readonly and not clone, so this disk can be used by more VMs at the same time
@@ -115,24 +119,38 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
     fi
 
     if [ "$TM_MAD" = "3par" ]; then
-        if [ "$CLONE" == "YES" ]; then
-            #-------------------------------------------------------------------------------
-            # Get system ds information
-            #-------------------------------------------------------------------------------
+        # if clone or volatile = non-persistent disk
+        if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
+          DSID=$SYS_DSID
+        else
+          DSID=$IMG_DSID
+        fi
 
-            unset i j XPATH_ELEMENTS
+        #-------------------------------------------------------------------------------
+        # Get ds information
+        #-------------------------------------------------------------------------------
 
-            while IFS= read -r -d '' element; do
-                XPATH_ELEMENTS[i++]="$element"
-            done < <(onedatastore show -x $SYS_DSID | $XPATH \
-                               /DATASTORE/TEMPLATE/API_ENDPOINT \
-                               /DATASTORE/TEMPLATE/IP \
-                               /DATASTORE/TEMPLATE/NAMING_TYPE)
+        unset i j XPATH_ELEMENTS
 
-            API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
-            IP="${XPATH_ELEMENTS[j++]:-$IP}"
-            NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+        while IFS= read -r -d '' element; do
+            XPATH_ELEMENTS[i++]="$element"
+        done < <(onedatastore show -x $DSID | $XPATH \
+                          /DATASTORE/TEMPLATE/API_ENDPOINT \
+                          /DATASTORE/TEMPLATE/IP \
+                          /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                          /DATASTORE/TEMPLATE/SEC_IP \
+                          /DATASTORE/TEMPLATE/REMOTE_COPY \
+                          /DATASTORE/TEMPLATE/NAMING_TYPE)
 
+        API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+        IP="${XPATH_ELEMENTS[j++]:-$IP}"
+        SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+        SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+        REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+        NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+
+        # if clone or volatile = non-persistent disk
+        if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
             # get VM disk WWN
             NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                         -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)

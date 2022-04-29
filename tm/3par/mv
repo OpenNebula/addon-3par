@@ -118,12 +118,14 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DISK_TYPE \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
 NAME_WWN="${XPATH_ELEMENTS[j++]}"
 IMAGE_ID="${XPATH_ELEMENTS[j++]}"
 CLONE="${XPATH_ELEMENTS[j++]}"
 PERSISTENT="${XPATH_ELEMENTS[j++]}"
+DISK_TYPE="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 #-------------------------------------------------------------------------------
@@ -137,14 +139,20 @@ while IFS= read -r -d '' element; do
 done < <(onedatastore show -x $SYS_DSID | $XPATH \
                     /DATASTORE/TEMPLATE/API_ENDPOINT \
                     /DATASTORE/TEMPLATE/IP \
+                    /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/SEC_IP \
+                    /DATASTORE/TEMPLATE/REMOTE_COPY \
                     /DATASTORE/TEMPLATE/NAMING_TYPE)
 
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 
 # Disk os clone or volatile, so copy was created
-if [ "$CLONE" = "YES" ] || [ -z "$NAME_WWN" ]; then
+if [ "$CLONE" = "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
   #-------------------------------------------------------------------------------
   # Get system ds information
   #-------------------------------------------------------------------------------
@@ -156,9 +164,15 @@ if [ "$CLONE" = "YES" ] || [ -z "$NAME_WWN" ]; then
   done < <(onedatastore show -x $SYS_DSID | $XPATH \
                         /DATASTORE/TEMPLATE/API_ENDPOINT \
                         /DATASTORE/TEMPLATE/IP \
+                        /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                        /DATASTORE/TEMPLATE/SEC_IP \
+                        /DATASTORE/TEMPLATE/REMOTE_COPY \
                         /DATASTORE/TEMPLATE/NAMING_TYPE)
   API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
   IP="${XPATH_ELEMENTS[j++]:-$IP}"
+  SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+  SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+  REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
   NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
   
   # get VM disk WWN

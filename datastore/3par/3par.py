@@ -34,13 +34,16 @@ def boolarg(string):
 # Common Parser
 commonParser = argparse.ArgumentParser(add_help=False)
 commonParser.add_argument('-a', '--api', help='WSAPI Endpoint', required=True)
+commonParser.add_argument('-sapi', '--sapi', help='Secondary WSAPI Endpoint', required=False)
 commonParser.add_argument('-s', '--secure',
-                          help='WSAPI SSL certification verification is disabled. In order to override this,'
+                          help='WSAPI SSL certification verification is disabled. In order to override this, '
                                'set this to 1 or to /path/to/cert.crt',
                           type=boolarg,
                           default=False)
 commonParser.add_argument('-i', '--ip', help='3PAR IP for SSH authentication options for the SSH based calls',
                           required=True)
+commonParser.add_argument('-sip', '--sip', help='Secondary 3PAR IP for SSH authentication options for the SSH based calls',
+                          required=False)
 commonParser.add_argument('-u', '--username', help='3PAR username', required=True)
 commonParser.add_argument('-p', '--password', help='3PAR password', required=True)
 commonParser.add_argument('-sd', '--softDelete', help='Soft-delete volumes/snapshots', type=boolarg, default=True)
@@ -68,6 +71,7 @@ createVVParser.add_argument('-co', '--comment', help='Comment')
 deleteVVParser = subparsers.add_parser('deleteVV', parents=[commonParser], help='Delete VV')
 deleteVVParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
 deleteVVParser.add_argument('-id', '--id', help='ID of VV to use in VV name', required=True)
+deleteVVParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # CloneVV task parser
 cloneVVParser = subparsers.add_parser('cloneVV', parents=[commonParser], help='Clone specific VV to new one')
@@ -111,11 +115,13 @@ getVVSizeParser.add_argument('-t', '--type', help='Type of size to get', choices
 exportVVParser = subparsers.add_parser('exportVV', parents=[commonParser], help='Export VV to host')
 exportVVParser.add_argument('-n', '--name', help='Name of VV to export', required=True)
 exportVVParser.add_argument('-hs', '--host', help='Name of host to export to', required=True)
+exportVVParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # UnexportVV task parser
 unexportVVParser = subparsers.add_parser('unexportVV', parents=[commonParser], help='Unexport VV from host')
 unexportVVParser.add_argument('-n', '--name', help='Name of VV to unexport', required=True)
 unexportVVParser.add_argument('-hs', '--host', help='Name of host to unexport from', required=True)
+unexportVVParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # CreateVmClone task parser
 createVmCloneParser = subparsers.add_parser('createVmClone', parents=[commonParser],
@@ -236,7 +242,6 @@ createQosPolicyParser = subparsers.add_parser('createQosPolicy', parents=[common
 createQosPolicyParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
                                    default='dev')
 createQosPolicyParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
-createQosPolicyParser.add_argument('-n', '--name', help='Name of VV', required=True)
 createQosPolicyParser.add_argument('-qp', '--qosPriority', help='QoS Priority', choices=['LOW', 'NORMAL', 'HIGH'],
                                         required=True)
 createQosPolicyParser.add_argument('-qxi', '--qosMaxIops', help='QoS Max IOPS', type=int, required=True)
@@ -244,14 +249,28 @@ createQosPolicyParser.add_argument('-qmi', '--qosMinIops', help='QoS Min IOPS', 
 createQosPolicyParser.add_argument('-qxb', '--qosMaxBw', help='QoS Max BW in kB/s', type=int, required=True)
 createQosPolicyParser.add_argument('-qmb', '--qosMinBw', help='QoS Min BW in kB/s', type=int, required=True)
 createQosPolicyParser.add_argument('-ql', '--qosLatency', help='QoS Latency in ms', type=int, required=True)
+createQosPolicyParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
-# DeleteQosPolicy task parser
-deleteQosPolicyParser = subparsers.add_parser('deleteQosPolicy', parents=[commonParser],
-                                              help='Delete QoS policy from VM VV set')
-deleteQosPolicyParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
+
+# addVolumeToRCGroup task parser
+addVolumeToRCGroupParser = subparsers.add_parser('addVolumeToRCGroup', parents=[commonParser],
+                                              help='Add volume to Remote Copy group. If RC group does not exists, it creates new one')
+addVolumeToRCGroupParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
                                    default='dev')
-deleteQosPolicyParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
-deleteQosPolicyParser.add_argument('-n', '--name', help='Name of VV', required=True)
+addVolumeToRCGroupParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
+addVolumeToRCGroupParser.add_argument('-n', '--name', help='Name of VV', required=True)
+addVolumeToRCGroupParser.add_argument('-rcm', '--remoteCopyMode', help='Remote Copy mode', choices=['SYNC', 'PERIODIC', 'ASYNC'], required=True)
+addVolumeToRCGroupParser.add_argument('-c', '--cpg', help='Local CPG Name', required=True)
+addVolumeToRCGroupParser.add_argument('-sc', '--secCpg', help='Remote CPG Name', required=True)
+
+# DeleteVolumeFromRCGroup task parser
+deleteVolumeFromRCGroupParser = subparsers.add_parser('deleteVolumeFromRCGroup', parents=[commonParser],
+                                        help='Delete volume from Remote Copy group. If it is last member, it stop RC group')
+deleteVolumeFromRCGroupParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
+                                   default='dev')
+deleteVolumeFromRCGroupParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
+deleteVolumeFromRCGroupParser.add_argument('-n', '--name', help='Name of VV', required=True)
+deleteVolumeFromRCGroupParser.add_argument('-rcm', '--remoteCopyMode', help='Remote Copy mode', choices=['SYNC', 'PERIODIC', 'ASYNC'], required=True)
 
 # ------------
 # Define tasks
@@ -321,9 +340,13 @@ def createVV(cl, args):
     print '{name}:{wwn}'.format(name=name, wwn=wwn)
 
 def deleteVV(cl, args):
-    name = createVVName(args.namingType, args.id)
+    vvName = createVVName(args.namingType, args.id)
 
-    deleteVVWithName(cl, name)
+    if args.remoteCopy:
+        vvName = '{name}.r'.format(name=vvName)
+        cl = getRemoteSystemClient(args)
+
+    deleteVVWithName(cl, vvName)
 
 def cloneVV(cl, args):
     srcName = createVVName(args.srcNamingType, args.srcId)
@@ -368,7 +391,12 @@ def getVVSize(cl, args):
         print vv.get('sizeMiB')
 
 def exportVV(cl, args):
-    name = args.name
+    if args.remoteCopy:
+        name = '{name}.r'.format(name=args.name)
+        cl = getRemoteSystemClient(args)
+    else:
+        name = args.name
+
     host = args.host
 
     # check if VLUN already exists
@@ -392,7 +420,12 @@ def exportVV(cl, args):
             time.sleep(5)
 
 def unexportVV(cl, args):
-    name = args.name
+    if args.remoteCopy:
+        name = '{name}.r'.format(name=args.name)
+        cl = getRemoteSystemClient(args)
+    else:
+        name = args.name
+
     host = args.host
 
     # check if VLUN exists
@@ -492,6 +525,7 @@ def createVVSetSnapshot(cl, args):
     name = '@vvname@.{snapId}'.format(snapId=snapId)
 
     # create snapshots
+    # todo: rcopy option syncSnapRcopy: True
     cl.createSnapshotOfVolumeSet(name, vvsetName, {'readOnly': True})
 
     # create and add snapshot metadata to all members
@@ -554,6 +588,7 @@ def createSnapshot(cl, args):
         except exceptions.HTTPNotFound:
             pass
 
+    # todo: rcopy option syncSnapRcopy: True
     cl.createSnapshot(name, srcName, {'readOnly': True})
     cl.setVolumeMetaData(srcName, metaKey, name)
 
@@ -681,51 +716,166 @@ def deleteVolumeFromVVSet(cl, args):
 
 
 def createQosPolicy(cl, args):
-    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+    if args.remoteCopy:
+        vvsetName = 'RCP_{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    else:
+        vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
 
     # create QoS policy if not exists
     qosRules = prepareQosRules(args)
+
+    # primary system
+    setQosRules(cl, vvsetName, qosRules)
+
+    # remote system
+    if args.remoteCopy:
+        scl = getRemoteSystemClient(args)
+        sysId = int(cl.getStorageSystemInfo().get('id'))
+        secVvsetName = '{name}.r{sysId}'.format(name=vvsetName, sysId=sysId)
+        # strip to 27 chars, like 3par
+        setQosRules(scl, secVvsetName[0:27], qosRules)
+
+
+def addVolumeToRCGroup(cl, args):
+    shouldStartRcg = True
+    rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+
+    scl, targetName = getRemoteCopyTargetName(args)
+
+    # get or create rc group
     try:
-        qos = cl.queryQoSRule(vvsetName)
-        # compare rules
-        for k, v in qosRules.items():
-            if k == 'enable':
-                k = 'enabled'
-            if qos.get(k) != v:
-                # not match, update
-                print 'QoS Policy Rules changed, need update'
-                cl.modifyQoSRules(vvsetName, qosRules)
-                break
+        rcg = cl.getRemoteCopyGroup(rcgName)
+        rcgState = rcg.get('targets')[0].get('state')
+        # rc group already in starting/started state
+        if rcgState == 2 or rcgState == 3:
+            shouldStartRcg = False
     except exceptions.HTTPNotFound:
-        print 'QoS Policy does not exists, create new'
-        cl.createQoSRules(vvsetName, qosRules)
+        print 'Remote Copy group does not exists, create new'
+        targets, optional, policies = getRCGroupParams(targetName, args)
+        cl.createRemoteCopyGroup(rcgName, targets, optional)
+        # modify to add specific options
+        cl.modifyRemoteCopyGroup(rcgName, {'targets': [{'policies': policies}]})
 
-
-def deleteQosPolicy(cl, args):
-    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
-
-    # get volume set info
+    # add volume to rc group
     try:
-        vvset = cl.getVolumeSet(vvsetName)
-        members = vvset.get('setmembers')
+        secVVName = '{name}.r'.format(name=args.name)
+        volumeAutoCreation = True
+        skipInitialSync = False
+
+        # check if remote VV exist
+        try:
+            secVV = scl.getVolume(secVVName)
+            if 'expirationTimeSec' in secVV:
+                scl.modifyVolume(secVVName, {'rmExpTime': True})
+            volumeAutoCreation = False
+            skipInitialSync = True
+        except exceptions.HTTPNotFound:
+            pass
+
+        target = {
+            'targetName': targetName,
+            'secVolumeName': secVVName
+        }
+
+        print 'Add volume to Remote Copy group'
+        cl.addVolumeToRemoteCopyGroup(rcgName, args.name, [target], {
+            'volumeAutoCreation': volumeAutoCreation,
+            'skipInitialSync': skipInitialSync
+        })
+
+        # start rc group
+        if shouldStartRcg:
+            print 'Start Remote Copy group'
+            cl.startRemoteCopy(rcgName)
+    except exceptions.HTTPConflict as ex:
+        print str(ex)
+
+    scl.logout()
+
+
+def deleteVolumeFromRCGroup(cl, args):
+    rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+
+    # remove volume from rc group
+    try:
+        cl.stopRemoteCopy(rcgName)
+        cl.removeVolumeFromRemoteCopyGroup(rcgName, args.name)
     except exceptions.HTTPNotFound:
-        print 'Volume set does not exits, exiting...'
+        print 'Volume is already removed from rc group'
+
+    # get rc group info
+    try:
+        rcg = cl.getRemoteCopyGroup(rcgName)
+        volumes = rcg.get('volumes')
+    except exceptions.HTTPNotFound:
+        print 'Remote Copy group does not exits, exiting...'
         return
 
-    # if there are other members them we do not remove QoS Policy
-    if members and len(members) > 0:
+    # if there are other members them we do not remove VV Set
+    if volumes and len(volumes) > 0:
+        # start rc group back
+        cl.startRemoteCopy(rcgName)
         return
 
-    # delete qos policy
+    # delete rc group
     try:
-        cl.deleteQoSRules(vvsetName)
+        cl.removeRemoteCopyGroup(rcgName)
     except exceptions.HTTPNotFound:
-        print 'QoS Policy already does not exits'
-
+        print 'Remote Copy group does not exits'
 
 # ----------------
 # Helper functions
 # ----------------
+def getRCGroupParams(targetName, args):
+    target = {'targetName': targetName}
+    policies = {'autoRecover': True}
+
+    if args.remoteCopyMode == 'SYNC':
+        target['mode'] = 1
+        #policies['autoFailover'] = True
+        policies['pathManagement'] = True
+    elif args.remoteCopyMode == 'PERIODIC':
+        target['mode'] = 3
+    elif args.remoteCopyMode == 'ASYNC':
+        target['mode'] = 4
+
+    target['userCPG'] = args.secCpg
+    target['snapCPG'] = args.secCpg
+
+    optional = {
+        'localSnapCPG': args.cpg,
+        'localUserCPG': args.cpg
+    }
+
+    return [target], optional, policies
+
+def getRemoteCopyTargetName(args):
+    scl = getRemoteSystemClient(args)
+
+    targetName = scl.getStorageSystemInfo().get('name').encode('ascii', 'ignore')
+
+    return scl, targetName
+
+def getRemoteSystemClient(args):
+    # check for remoteCopy required args
+    if args.sapi is None or args.sip is None:
+        parser.error("--remoteCopy requires --sapi and --sip.")
+
+    secure = False
+    if args.secure == True:
+        secure = True
+
+    scl = client.HPE3ParClient(args.sapi, False, secure, None, True)
+    scl.setSSHOptions(args.sip, args.username, args.password)
+
+    try:
+        scl.login(args.username, args.password)
+    except exceptions.HTTPUnauthorized as ex:
+        print "Remote system: Login failed."
+
+    return scl
+
+
 def createVVName(namingType, id):
     return '{namingType}.one.{id}.vv'.format(namingType=namingType, id=id)
 
@@ -819,7 +969,7 @@ def prepareQosRules(args):
         qosRules['bwMinGoalKB'] = 1
 
     if args.qosLatency == 0:
-        qosRules['latencyGoal'] = 5000
+        qosRules['latencyGoal'] = None
         qosRules['defaultLatency'] = True
 
     if args.qosPriority == 'LOW':
@@ -830,6 +980,24 @@ def prepareQosRules(args):
         qosRules['priority'] = 3
 
     return qosRules
+
+def setQosRules(cl, vvsetName, qosRules):
+    try:
+        qos = cl.queryQoSRule(vvsetName)
+        # compare rules
+        for k, v in qosRules.items():
+            if k == 'enable':
+                k = 'enabled'
+            if k == 'defaultLatency' and v:
+                v = None
+            if qos.get(k) != v:
+                # not match, update
+                print 'QoS Policy Rules changed, need update'
+                cl.modifyQoSRules(vvsetName, qosRules)
+                break
+    except exceptions.HTTPNotFound:
+        print 'QoS Policy does not exists, create new'
+        cl.createQoSRules(vvsetName, qosRules)
 
 # -------------------------------------
 # Parse args and proceed with execution

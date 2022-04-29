@@ -144,16 +144,25 @@ while IFS= read -r -d '' element; do
 done < <(onedatastore show -x $DSID | $XPATH \
                         /DATASTORE/TEMPLATE/API_ENDPOINT \
                         /DATASTORE/TEMPLATE/IP \
+                        /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                        /DATASTORE/TEMPLATE/SEC_IP \
+                        /DATASTORE/TEMPLATE/REMOTE_COPY \
                         /DATASTORE/TEMPLATE/NAMING_TYPE \
                         /DATASTORE/TEMPLATE/QOS_ENABLE)
 
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
 # if clone or volatile = non-persistent disk, get right name and wwn
 if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
+    # Disable remote copy for non-persistent disk
+    REMOTE_COPY="NO"
+
     #-------------------------------------------------------------------------------
     # Get system ds information
     #-------------------------------------------------------------------------------
@@ -174,8 +183,8 @@ if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
     QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
     # get VM disk WWN
-    NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
+    NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE \
+                                                  -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
 
     if [ $? -ne 0 ]; then
       error_message "$NAME_WWN"
@@ -187,8 +196,8 @@ NAME=$(get_vv_name "$NAME_WWN")
 WWN=$(get_vv_wwn "$NAME_WWN")
 
 # Check if DST host is 3PAR host, so compute node
-DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                        -p $PASSWORD -hs $DST_HOST)
+DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE \
+                                                          -u $USERNAME -p $PASSWORD -hs $DST_HOST)
 
 if [ $? -ne 0 ]; then
   error_message "$DST_HOST_3PAR"
@@ -212,33 +221,44 @@ EOF
   ssh_exec_and_log "$DST_HOST" "$FLUSH_CMD" \
       "Error flushing out mapping"
   
-  python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                                        -n $NAME -hs $DST_HOST
+  python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
+                                          -p $PASSWORD -n $NAME -hs $DST_HOST
 
   if [ $? -ne 0 ]; then
     error_message "Error unexporting VV"
     exit 1
   fi
-fi
 
-if [ "$QOS_ENABLE" == "YES" ]; then
-  log "Delete QoS Policy"
-  QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteQosPolicy -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                    -nt $NAMING_TYPE -n $NAME -vi $VMID)
+  if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+      python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
+                    -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $DST_HOST -rc $REMOTE_COPY
 
-  if [ $? -ne 0 ]; then
-    error_message "$QOS"
-    exit 1
+      if [ $? -ne 0 ]; then
+        error_message "Error unexporting remote VV"
+        exit 1
+      fi
   fi
 fi
 
-log "Remove disk from VM VV Set"
-VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                    -nt $NAMING_TYPE -n $NAME -vi $VMID)
+if [ "$REMOTE_COPY" == "YES" ]; then
+    log "Remove disk from Remote Copy group"
+    RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromRCGroup -a $API_ENDPOINT -i $IP \
+                    -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
+                    -n $NAME -vi $VMID -rcm $REMOTE_COPY_MODE)
 
-if [ $? -ne 0 ]; then
-  error_message "$VVSET"
-  exit 1
+    if [ $? -ne 0 ]; then
+      error_message "$RCG"
+      exit 1
+    fi
+else
+    log "Remove disk from VM VV Set"
+    VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP -s $SECURE \
+                                              -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
+
+    if [ $? -ne 0 ]; then
+      error_message "$VVSET"
+      exit 1
+    fi
 fi
 
 # Exit if not clone and not volatile
@@ -248,5 +268,5 @@ fi
 # Delete non-persistent image copy
 #-------------------------------------------------------------------------------
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                                            -nt $NAMING_TYPE -vi $VMID -id $DISK_ID
+python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
+                                            -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID

@@ -55,7 +55,7 @@ DISK_ID=$(echo "$SRC_PATH" | $AWK -F. '$NF!=$0 {print $NF}')
 
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
@@ -63,12 +63,14 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/READONLY \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-NAME_WWN="${XPATH_ELEMENTS[0]}"
-PERSISTENT="${XPATH_ELEMENTS[1]}"
-READONLY="${XPATH_ELEMENTS[2]}"
-SYS_DSID="${XPATH_ELEMENTS[3]}"
+NAME_WWN="${XPATH_ELEMENTS[j++]}"
+PERSISTENT="${XPATH_ELEMENTS[j++]}"
+READONLY="${XPATH_ELEMENTS[j++]}"
+IMG_DSID="${XPATH_ELEMENTS[j++]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 # Exit if readonly
 [ "$READONLY" == "YES" ] && exit 1
@@ -78,25 +80,35 @@ SYS_DSID="${XPATH_ELEMENTS[3]}"
 #-------------------------------------------------------------------------------
 
 if [ "$PERSISTENT" != "YES" ]; then
-  #-------------------------------------------------------------------------------
-  # Get system ds information
-  #-------------------------------------------------------------------------------
-  
-  unset i j XPATH_ELEMENTS
-  
-  while IFS= read -r -d '' element; do
-      XPATH_ELEMENTS[i++]="$element"
-  done < <(onedatastore show -x $SYS_DSID | $XPATH \
-                     /DATASTORE/TEMPLATE/API_ENDPOINT \
-                     /DATASTORE/TEMPLATE/IP \
-                     /DATASTORE/TEMPLATE/NAMING_TYPE)
+  DSID=$SYS_DSID
+else
+  DSID=$IMG_DSID
+fi
 
-  API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
-  IP="${XPATH_ELEMENTS[j++]:-$IP}"
-  NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+#-------------------------------------------------------------------------------
+# Get system ds information
+#-------------------------------------------------------------------------------
 
+unset i j XPATH_ELEMENTS
 
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $DSID | $XPATH \
+                  /DATASTORE/TEMPLATE/API_ENDPOINT \
+                  /DATASTORE/TEMPLATE/IP \
+                  /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                  /DATASTORE/TEMPLATE/SEC_IP \
+                  /DATASTORE/TEMPLATE/REMOTE_COPY \
+                  /DATASTORE/TEMPLATE/NAMING_TYPE)
 
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+
+if [ "$PERSISTENT" != "YES" ]; then
   # get VM disk WWN
   NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                 -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)

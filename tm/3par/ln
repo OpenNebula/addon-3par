@@ -92,10 +92,20 @@ while IFS= read -r -d '' element; do
 done < <(onedatastore show -x $DSID | $XPATH \
                     /DATASTORE/TEMPLATE/API_ENDPOINT \
                     /DATASTORE/TEMPLATE/IP \
+                    /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/SEC_IP \
+                    /DATASTORE/TEMPLATE/REMOTE_COPY \
+                    /DATASTORE/TEMPLATE/CPG \
+                    /DATASTORE/TEMPLATE/SEC_CPG \
                     /DATASTORE/TEMPLATE/NAMING_TYPE)
 
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
+SEC_CPG="${XPATH_ELEMENTS[j++]:-$SEC_CPG}"
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 
 #-------------------------------------------------------------------------------
@@ -126,26 +136,59 @@ QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
 #-------------------------------------------------------------------------------
 # Start actions
 #-------------------------------------------------------------------------------
+if [ "$REMOTE_COPY" == "YES" ]; then
+    log "Create remote copy group"
+    RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToRCGroup -a $API_ENDPOINT -i $IP \
+      -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID \
+      -c $CPG -sc $SEC_CPG -rcm $REMOTE_COPY_MODE)
 
-log "Add disk to VM VV Set"
-VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                    -nt $NAMING_TYPE -n $NAME -vi $VMID)
+    if [ $? -ne 0 ]; then
+      error_message "$RCG"
+      exit 1
+    fi
+else
+    log "Add disk to VM VV Set"
+    VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToVVSet -a $API_ENDPOINT -i $IP -s $SECURE \
+                  -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
 
-if [ $? -ne 0 ]; then
-  error_message "$VVSET"
-  exit 1
+    if [ $? -ne 0 ]; then
+      error_message "$VVSET"
+      exit 1
+    fi
 fi
 
 if [ "$QOS_ENABLE" == "YES" ]; then
     log "Create QoS Policy"
-    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                        -nt $NAMING_TYPE -n $NAME -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS \
-                        -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY)
+    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP \
+          -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -vi $VMID \
+          -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY \
+          -rc $REMOTE_COPY)
 
     if [ $? -ne 0 ]; then
       error_message "$QOS"
       exit 1
     fi
+fi
+
+if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+    log "Mapping remote $SRC to $DST_HOST"
+
+    LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD \
+                                                                    -n $NAME -hs $DST_HOST -rc $REMOTE_COPY)
+
+    if [ $? -ne 0 ]; then
+      error_message "$LUN"
+      exit 1
+    fi
+
+    RESCAN_CMD=$(cat <<EOF
+        set -e
+        $(rescan_scsi_bus "$LUN")
+EOF
+)
+
+    ssh_exec_and_log "$DST_HOST" "$RESCAN_CMD" \
+      "Error registering remote $SRC to $DST_HOST"
 fi
 
 log "Mapping $SRC to $DST_HOST"

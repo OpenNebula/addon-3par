@@ -40,6 +40,27 @@ source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 DRV_ACTION=$1
 ID=$2
 
+XPATH="${DRIVER_PATH}/../xpath.rb -b $DRV_ACTION"
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/API_ENDPOINT \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/IP \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_IP \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/REMOTE_COPY \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE)
+
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+
 # ------------ Delete image -------------
 
-python ${DRIVER_PATH}/3par.py deleteVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $ID
+python ${DRIVER_PATH}/3par.py deleteVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE \
+                                    -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $ID -rc $REMOTE_COPY

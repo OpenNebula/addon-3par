@@ -218,12 +218,17 @@ Some configuration attributes must be set to enable a datastore as 3PAR enabled 
 * **DS_MAD**: [mandatory] The DS driver for the datastore. String, use value `3par`
 * **TM_MAD**: [mandatory] Transfer driver for the datastore. String, use value `3par`
 * **DISK_TYPE**: [mandatory for IMAGE datastores] Type for the VM disks using images from this datastore. String, use value `block`
+* **API_ENDPOINT**: 3PAR WSAPI Endpoint. String
+* **IP**: 3PAR IP address for SSH authentication options for the SSH based calls. String
 * **CPG**: [mandatory] Name of Common Provisioning Group created on 3PAR. String
 * **THIN**: Use thin volumes `tpvv` or no. By default enabled. `YES|NO`
 * **DEDUP**: Use deduplicated thin volumes `tdvv` or no. By default disabled. `YES|NO`
 * **COMPRESSION**: Use compressed thin volumes or no. By default disabled. `YES|NO`
 * **NAMING_TYPE**: Part of volume name defining environment. By default `dev`. String (1)
-* **BRIDGE_LIST**: Nodes to use for image datastore operations. String (2)
+* **BRIDGE_LIST**: [mandatory for IMAGE datastores] Nodes to use for image datastore operations. String (2)
+* **REMOTE_COPY**: Enable Remote Copy. `YES|NO`
+* **SEC_API_ENDPOINT**: [mandatory when Remote Copy] Secondary 3PAR WSAPI Endpoint. String
+* **SEC_IP**: [mandatory when Remote Copy] Secondary 3PAR IP address. String
 * **QOS_ENABLE**: Enable QoS. `YES|NO` (3)
 * **QOS_PRIORITY**: QoS Priority. `HIGH|NORMAL|LOW` (4)
 * **QOS_MAX\_IOPS**: QoS Max IOPS. Int (5)

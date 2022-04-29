@@ -86,6 +86,9 @@ while IFS= read -r -d '' element; do
 done < <(onedatastore show -x $DSID| $XPATH \
                     /DATASTORE/TEMPLATE/API_ENDPOINT \
                     /DATASTORE/TEMPLATE/IP \
+                    /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/SEC_IP \
+                    /DATASTORE/TEMPLATE/REMOTE_COPY \
                     /DATASTORE/TEMPLATE/CPG \
                     /DATASTORE/TEMPLATE/THIN \
                     /DATASTORE/TEMPLATE/DEDUP \
@@ -101,6 +104,9 @@ done < <(onedatastore show -x $DSID| $XPATH \
 
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
 THIN="${XPATH_ELEMENTS[j++]:-$THIN}"
 DEDUP="${XPATH_ELEMENTS[j++]:-$DEDUP}"
@@ -142,7 +148,7 @@ fi
 if [ "$QOS_ENABLE" == "YES" ]; then
     log "Create QoS Policy"
     QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                        -nt $NAMING_TYPE -n $NEW_NAME -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS \
+                        -nt $NAMING_TYPE -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS \
                         -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY)
 
     if [ $? -ne 0 ]; then
