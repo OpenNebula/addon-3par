@@ -115,18 +115,21 @@ function remove_lun {
     WWN="$1"
     cat <<EOF
       DEV="/dev/mapper/3$WWN"
-      DM_HOLDER=\$($SUDO $DMSETUP ls -o blkdevname | grep -Po "(?<=3$WWN\s\()[^)]+")
-      DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
 
-      $(multipath_flush "\$DEV")
+      if [ -a \$DEV ]; then
+        DM_HOLDER=\$($SUDO $DMSETUP ls -o blkdevname | grep -Po "(?<=3$WWN\s\()[^)]+")
+        DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
 
-      unset device
-      for device in \${DM_SLAVE}
-      do
-          if [ -e /dev/\${device} ]; then
-              $SUDO $BLOCKDEV --flushbufs /dev/\${device}
-              echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
-          fi
-      done
+        $(multipath_flush "\$DEV")
+
+        unset device
+        for device in \${DM_SLAVE}
+        do
+            if [ -e /dev/\${device} ]; then
+                $SUDO $BLOCKDEV --flushbufs /dev/\${device}
+                echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
+            fi
+        done
+      fi
 EOF
 }
