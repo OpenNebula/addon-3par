@@ -117,16 +117,6 @@ ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
 python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                         -n $NAME -hs $SRC_HOST
 
-if [ "$QOS_ENABLE" == "YES" ]; then
-    log "Delete QoS Policy"
-    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteQosPolicy -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                        -nt $NAMING_TYPE -n $NAME -vi $VMID)
-
-    if [ $? -ne 0 ]; then
-      error_message "$QOS"
-      exit 1
-    fi
-fi
 
 log "Remove disk from VM VV Set"
 VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
