@@ -340,12 +340,12 @@ def createVV(cl, args):
 
 def deleteVV(cl, args):
     vvName = createVVName(args.namingType, args.id)
+    deleteVVWithName(cl, vvName)
 
     if args.remoteCopy:
         vvName = '{name}.r'.format(name=vvName)
         cl = getRemoteSystemClient(args)
-
-    deleteVVWithName(cl, vvName)
+        deleteVVWithName(cl, vvName)
 
 def cloneVV(cl, args):
     srcName = createVVName(args.srcNamingType, args.srcId)
