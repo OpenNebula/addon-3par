@@ -97,7 +97,7 @@ done < <(onedatastore show -x $SRC_DSID | $XPATH \
                                 /DATASTORE/TEMPLATE/REMOTE_COPY \
                                 /DATASTORE/TEMPLATE/CPG \
                                 /DATASTORE/TEMPLATE/SEC_CPG \
-                                /DATASTORE/TEMPLATE/NAMING_TYPE
+                                /DATASTORE/TEMPLATE/NAMING_TYPE \
                                 /DATASTORE/TEMPLATE/QOS_ENABLE \
                                 /DATASTORE/TEMPLATE/QOS_PRIORITY \
                                 /DATASTORE/TEMPLATE/QOS_MAX_IOPS \
