@@ -67,12 +67,16 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DISK_TYPE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID \
                     /VM/DEPLOY_ID)
 
 IMAGE_ID="${XPATH_ELEMENTS[j++]}"
 NAME_WWN="${XPATH_ELEMENTS[j++]}"
 CLONE="${XPATH_ELEMENTS[j++]}"
+DISK_TYPE="${XPATH_ELEMENTS[j++]}"
+IMG_DSID="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
 DEPLOY_ID="${XPATH_ELEMENTS[j++]}"
 
@@ -84,12 +88,18 @@ fi
 #-------------------------------------------------------------------------------
 # Get system ds information
 #-------------------------------------------------------------------------------
+# if clone or volatile = non-persistent disk
+if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
+  DSID=$SYS_DSID
+else
+  DSID=$IMG_DSID
+fi
 
 unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SYS_DSID | $XPATH \
+done < <(onedatastore show -x $DSID | $XPATH \
                   /DATASTORE/TEMPLATE/API_ENDPOINT \
                   /DATASTORE/TEMPLATE/IP \
                   /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
@@ -124,8 +134,9 @@ WWN=$(get_vv_wwn "$NAME_WWN")
 
 # revert snapshot
 log "Reverting snapshot $SNAP_ID"
-python ${DRIVER_PATH}/../../datastore/3par/3par.py revertSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                              -p $PASSWORD -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID -vc $CLONE -o $ONLINE
+python ${DRIVER_PATH}/../../datastore/3par/3par.py revertSnapshot -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
+      -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID \
+      -vc $CLONE -o $ONLINE -rc $REMOTE_COPY
 
 if [ $? -ne 0 ]; then
   error_message "Error promoting snapshot back to VV"

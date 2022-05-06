@@ -170,6 +170,7 @@ createVVSetSnapshotParser.add_argument('-nt', '--namingType', help='Source: Best
                                   default='dev')
 createVVSetSnapshotParser.add_argument('-vi', '--vmId', help='Id of VM')
 createVVSetSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+createVVSetSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # DeleteVVSetSnapshot task parser
 deleteVVSetSnapshotParser = subparsers.add_parser('deleteVVSetSnapshot', parents=[commonParser], help='Delete volume set snapshot')
@@ -177,6 +178,7 @@ deleteVVSetSnapshotParser.add_argument('-nt', '--namingType', help='Source: Best
                                   default='dev')
 deleteVVSetSnapshotParser.add_argument('-vi', '--vmId', help='Id of VM')
 deleteVVSetSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+deleteVVSetSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # CreateSnapshot task parser
 createSnapshotParser = subparsers.add_parser('createSnapshot', parents=[commonParser], help='Create snapshot of VV')
@@ -186,6 +188,7 @@ createSnapshotParser.add_argument('-id', '--id', help='ID of source VV or VM dis
 createSnapshotParser.add_argument('-vi', '--vmId', help='Id of VM')
 createSnapshotParser.add_argument('-vc', '--vmClone', help='Is VM clone VV?', type=boolarg, default=False)
 createSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+createSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # RevertSnapshot task parser
 revertSnapshotParser = subparsers.add_parser('revertSnapshot', parents=[commonParser],
@@ -198,6 +201,7 @@ revertSnapshotParser.add_argument('-vc', '--vmClone', help='Is VM clone VV?', ty
 revertSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
 revertSnapshotParser.add_argument('-o', '--online', help='Revert snapshot while VV is online (exported)', type=boolarg,
                                   default=False)
+revertSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # DeleteSnapshot task parser
 deleteSnapshotParser = subparsers.add_parser('deleteSnapshot', parents=[commonParser], help='Delete snapshot of VV')
@@ -494,7 +498,13 @@ def deleteVmClone(cl, args):
 
 def createVVSetSnapshot(cl, args):
     snapId = 's{snapId}'.format(snapId=args.snapId)
-    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+    scl = None
+
+    if args.remoteCopy:
+        scl = getRemoteSystemClient(args)
+        vvsetName = 'RCP_{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    else:
+        vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
 
     # get volume set info
     try:
@@ -520,12 +530,24 @@ def createVVSetSnapshot(cl, args):
             except exceptions.HTTPNotFound:
                 pass
 
+            if args.remoteCopy:
+                try:
+                    scl.getVolume(snapName)
+                    # snap exists, so delete it
+                    scl.deleteVolume(snapName)
+                except exceptions.HTTPNotFound:
+                    pass
+
     # prepare snapshot vv name pattern
     name = '@vvname@.{snapId}'.format(snapId=snapId)
 
     # create snapshots
-    # todo: rcopy option syncSnapRcopy: True
-    cl.createSnapshotOfVolumeSet(name, vvsetName, {'readOnly': True})
+    if args.remoteCopy:
+        rcgName = 'rcgroup:{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+        cmd = ['createsv', '-rcopy', '-ro', name, rcgName]
+        cl._run(cmd)
+    else:
+        cl.createSnapshotOfVolumeSet(name, vvsetName, {'readOnly': True})
 
     # create and add snapshot metadata to all members
     for member in members:
@@ -537,7 +559,13 @@ def createVVSetSnapshot(cl, args):
 
 def deleteVVSetSnapshot(cl, args):
     snapId = 's{snapId}'.format(snapId=args.snapId)
-    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+    scl = None
+
+    if args.remoteCopy:
+        scl = getRemoteSystemClient(args)
+        vvsetName = 'RCP_{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    else:
+        vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
 
     # get volume set info
     try:
@@ -558,8 +586,10 @@ def deleteVVSetSnapshot(cl, args):
 
         if args.softDelete:
             cl.modifyVolume(name, {'expirationHours': 168})
+            args.remoteCopy and scl.modifyVolume(name, {'expirationHours': 168})
         else:
             cl.deleteVolume(name)
+            args.remoteCopy and scl.deleteVolume(name)
 
         try:
             cl.removeVolumeMetaData(member, metaKey)
@@ -587,13 +617,18 @@ def createSnapshot(cl, args):
         except exceptions.HTTPNotFound:
             pass
 
-    # todo: rcopy option syncSnapRcopy: True
-    cl.createSnapshot(name, srcName, {'readOnly': True})
+    optional = {'readOnly': True}
+
+    if args.remoteCopy:
+        optional['syncSnapRcopy'] = True
+
+    cl.createSnapshot(name, srcName, optional)
     cl.setVolumeMetaData(srcName, metaKey, name)
 
 
 def revertSnapshot(cl, args):
     snapId = args.snapId
+    rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
 
     if args.vmClone == True:
         srcName = createVmCloneName(args.namingType, args.id, args.vmId)
@@ -604,7 +639,14 @@ def revertSnapshot(cl, args):
 
     optional = {'online': args.online}
 
+    if args.remoteCopy:
+        cl.stopRemoteCopy(rcgName)
+        optional['allowRemoteCopyParent'] = True
+
     cl.promoteVirtualCopy(name, optional)
+
+    if args.remoteCopy:
+        cl.startRemoteCopy(rcgName)
 
 
 def deleteSnapshot(cl, args):
