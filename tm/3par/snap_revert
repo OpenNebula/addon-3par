@@ -86,7 +86,7 @@ if [ "$CLONE" != "YES" ]; then
 fi
 
 #-------------------------------------------------------------------------------
-# Get system ds information
+# Get ds information
 #-------------------------------------------------------------------------------
 # if clone or volatile = non-persistent disk
 if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
@@ -133,7 +133,7 @@ NAME=$(get_vv_name "$NAME_WWN")
 WWN=$(get_vv_wwn "$NAME_WWN")
 
 # revert snapshot
-log "Reverting snapshot $SNAP_ID"
+log "Reverting snapshot $SNAP_ID; Online: $ONLINE"
 python ${DRIVER_PATH}/../../datastore/3par/3par.py revertSnapshot -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
       -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID \
       -vc $CLONE -o $ONLINE -rc $REMOTE_COPY

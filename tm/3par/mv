@@ -133,7 +133,7 @@ IMG_DSID="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 #-------------------------------------------------------------------------------
-# Get system ds information
+# Get ds information
 #-------------------------------------------------------------------------------
 # if clone or volatile = non-persistent disk
 if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then

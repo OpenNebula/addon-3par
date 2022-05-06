@@ -201,6 +201,8 @@ revertSnapshotParser.add_argument('-vc', '--vmClone', help='Is VM clone VV?', ty
 revertSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
 revertSnapshotParser.add_argument('-o', '--online', help='Revert snapshot while VV is online (exported)', type=boolarg,
                                   default=False)
+revertSnapshotParser.add_argument('-off', '--offline', help='Revert snapshot while VV is not attached to VM', type=boolarg,
+                                  default=False)
 revertSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # DeleteSnapshot task parser
@@ -211,12 +213,14 @@ deleteSnapshotParser.add_argument('-id', '--id', help='ID of source VV or VM dis
 deleteSnapshotParser.add_argument('-vi', '--vmId', help='Id of VM')
 deleteSnapshotParser.add_argument('-vc', '--vmClone', help='Is VM clone VV?', type=boolarg, default=False)
 deleteSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+deleteSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # FlattenSnapshot task parser
 flattenSnapshotParser = subparsers.add_parser('flattenSnapshot', parents=[commonParser],
                                               help='Promote selected snapshot and delete all snapshots of source VV')
 flattenSnapshotParser.add_argument('-sn', '--srcName', help='Name of source VV to which snapshot belongs', required=True)
 flattenSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+flattenSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # HostExists task parser
 hostExistsParser = subparsers.add_parser('hostExists', parents=[commonParser],
@@ -498,10 +502,8 @@ def deleteVmClone(cl, args):
 
 def createVVSetSnapshot(cl, args):
     snapId = 's{snapId}'.format(snapId=args.snapId)
-    scl = None
 
     if args.remoteCopy:
-        scl = getRemoteSystemClient(args)
         vvsetName = 'RCP_{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
     else:
         vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
@@ -531,6 +533,7 @@ def createVVSetSnapshot(cl, args):
                 pass
 
             if args.remoteCopy:
+                scl = getRemoteSystemClient(args)
                 try:
                     scl.getVolume(snapName)
                     # snap exists, so delete it
@@ -617,6 +620,15 @@ def createSnapshot(cl, args):
         except exceptions.HTTPNotFound:
             pass
 
+        if args.remoteCopy:
+            scl = getRemoteSystemClient(args)
+            try:
+                scl.getVolume(name)
+                # snap exists, so delete it
+                scl.deleteVolume(name)
+            except exceptions.HTTPNotFound:
+                pass
+
     optional = {'readOnly': True}
 
     if args.remoteCopy:
@@ -639,18 +651,44 @@ def revertSnapshot(cl, args):
 
     optional = {'online': args.online}
 
-    if args.remoteCopy:
+    if not args.offline and args.remoteCopy:
         cl.stopRemoteCopy(rcgName)
         optional['allowRemoteCopyParent'] = True
 
-    cl.promoteVirtualCopy(name, optional)
+    try:
+        cl.promoteVirtualCopy(name, optional)
+    except exceptions.ClientException as ex:
+        if not args.offline and args.remoteCopy:
+            cl.startRemoteCopy(rcgName)
 
-    if args.remoteCopy:
-        cl.startRemoteCopy(rcgName)
+        parser.error(ex)
+
+    if not args.offline and args.remoteCopy:
+        # need to wait for snapshot promoting
+        done = False
+        i = 0
+        while not done:
+            try:
+                cl.startRemoteCopy(rcgName)
+                done = True
+            except exceptions.HTTPBadRequest as ex:
+                # wait max 5min
+                if i > 60:
+                    # other issue, exiting
+                    cl.logout()
+                    print ex
+                    exit(1)
+                i += 1
+
+                time.sleep(5)
 
 
 def deleteSnapshot(cl, args):
     snapId = args.snapId
+    scl = None
+
+    if args.remoteCopy:
+        scl = getRemoteSystemClient(args)
 
     if args.vmClone == True:
         srcName = createVmCloneName(args.namingType, args.id, args.vmId)
@@ -661,8 +699,10 @@ def deleteSnapshot(cl, args):
 
     if args.softDelete:
         cl.modifyVolume(name, {'expirationHours': 168})
+        args.remoteCopy and scl.modifyVolume(name, {'expirationHours': 168})
     else:
         cl.deleteVolume(name)
+        args.remoteCopy and scl.deleteVolume(name)
 
     try:
         cl.removeVolumeMetaData(srcName, metaKey)
@@ -673,6 +713,10 @@ def deleteSnapshot(cl, args):
 def flattenSnapshot(cl, args):
     srcName = args.srcName
     snapId = args.snapId
+    scl = None
+
+    if args.remoteCopy:
+        scl = getRemoteSystemClient(args)
 
     name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
 
@@ -688,6 +732,7 @@ def flattenSnapshot(cl, args):
             try:
                 if args.softDelete:
                     cl.modifyVolume(snap, {'expirationHours': 168})
+                    args.remoteCopy and scl.modifyVolume(name, {'expirationHours': 168})
                 else:
                     # need to wait for snapshot promoting
                     done = False
@@ -697,11 +742,14 @@ def flattenSnapshot(cl, args):
                             done = True
                         except exceptions.HTTPConflict:
                             time.sleep(5)
+
+                    args.remoteCopy and scl.deleteVolume(name)
                 # snapshot deleted, remove metadata
                 cl.removeVolumeMetaData(srcName, key)
             except exceptions.HTTPNotFound:
                 # snapshot already not exists, remove metadata
                 cl.removeVolumeMetaData(srcName, key)
+
 
 def hostExists(cl, args):
     try:

@@ -64,5 +64,5 @@ SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
 REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 
-python ${DRIVER_PATH}/3par.py deleteSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
-                                    -id $ID -si $SNAP_ID
+python ${DRIVER_PATH}/3par.py deleteSnapshot -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE \
+            -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $ID -si $SNAP_ID -rc $REMOTE_COPY
