@@ -20,7 +20,8 @@
 # -------------------------------------------------------------------------- #
 
 ###############################################################################
-# This script is used to move images/directories across system_ds in different hosts. When used for the system datastore the script will received the directory 
+# This script is used to move images/directories across system_ds in different hosts.
+# When used for the system datastore the script will received the directory
 ###############################################################################
 
 # MV <hostA:system_ds/disk.i|hostB:system_ds/disk.i> vmid dsid

@@ -270,7 +270,6 @@ deleteVolumeFromRCGroupParser.add_argument('-nt', '--namingType', help='Best pra
                                    default='dev')
 deleteVolumeFromRCGroupParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
 deleteVolumeFromRCGroupParser.add_argument('-n', '--name', help='Name of VV', required=True)
-deleteVolumeFromRCGroupParser.add_argument('-rcm', '--remoteCopyMode', help='Remote Copy mode', choices=['SYNC', 'PERIODIC', 'ASYNC'], required=True)
 
 # ------------
 # Define tasks

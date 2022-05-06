@@ -228,37 +228,15 @@ EOF
     error_message "Error unexporting VV"
     exit 1
   fi
-
-  if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
-      python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
-                    -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $DST_HOST -rc $REMOTE_COPY
-
-      if [ $? -ne 0 ]; then
-        error_message "Error unexporting remote VV"
-        exit 1
-      fi
-  fi
 fi
 
-if [ "$REMOTE_COPY" == "YES" ]; then
-    log "Remove disk from Remote Copy group"
-    RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromRCGroup -a $API_ENDPOINT -i $IP \
-                    -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
-                    -n $NAME -vi $VMID -rcm $REMOTE_COPY_MODE)
+log "Remove disk from VM VV Set"
+VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP -s $SECURE \
+                                          -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
 
-    if [ $? -ne 0 ]; then
-      error_message "$RCG"
-      exit 1
-    fi
-else
-    log "Remove disk from VM VV Set"
-    VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP -s $SECURE \
-                                              -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
-
-    if [ $? -ne 0 ]; then
-      error_message "$VVSET"
-      exit 1
-    fi
+if [ $? -ne 0 ]; then
+  error_message "$VVSET"
+  exit 1
 fi
 
 # Exit if not clone and not volatile
