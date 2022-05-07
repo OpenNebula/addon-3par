@@ -114,11 +114,8 @@ SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
 REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 
-# We need to unexport volume, revert snapshot and them export volume back
-
-# If it is not readonly, need to get non-persistent VM disk
-# Readonly is for ex. CDROM and no copy is created
-if [ "$CLONE" == "YES" ]; then
+# if clone or volatile = non-persistent disk
+if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
   # get VM disk WWN
   NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE \
                                                 -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
@@ -127,6 +124,9 @@ if [ "$CLONE" == "YES" ]; then
     error_message "$NAME_WWN"
     exit 1
   fi
+
+  # Disable remote copy for non-persistent disk
+  REMOTE_COPY="NO"
 fi
 
 NAME=$(get_vv_name "$NAME_WWN")

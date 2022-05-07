@@ -105,5 +105,10 @@ SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
 REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 
+if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
+  # Disable remote copy for non-persistent disk
+  REMOTE_COPY="NO"
+fi
+
 python ${DRIVER_PATH}/../../datastore/3par/3par.py createSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -sapi $SEC_API_ENDPOINT \
       -sip $SEC_IP -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID -vc $CLONE -rc $REMOTE_COPY
