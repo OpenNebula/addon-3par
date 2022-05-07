@@ -229,6 +229,7 @@ Some configuration attributes must be set to enable a datastore as 3PAR enabled 
 * **REMOTE_COPY**: Enable Remote Copy. `YES|NO`
 * **SEC_API_ENDPOINT**: [mandatory when Remote Copy] Secondary 3PAR WSAPI Endpoint. String
 * **SEC_IP**: [mandatory when Remote Copy] Secondary 3PAR IP address. String
+* **SEC_CPG**: [mandatory when Remote Copy] Name of Common Provisioning Group on Secondary 3PAR. String
 * **QOS_ENABLE**: Enable QoS. `YES|NO` (3)
 * **QOS_PRIORITY**: QoS Priority. `HIGH|NORMAL|LOW` (4)
 * **QOS_MAX\_IOPS**: QoS Max IOPS. Int (5)
@@ -339,4 +340,4 @@ $ onedatastore list
 
 ## 3PAR best practices guide incl. naming conventions
 
-Please follow the [best practices guide](https://h20195.www2.hpe.com/v2/GetPDF.aspx/4AA4-4524ENW.pdf).
+Please follow the [best practices guide](https://support.hpe.com/hpesc/public/docDisplay?docLocale=en_US&docId=a00116000en_us).
