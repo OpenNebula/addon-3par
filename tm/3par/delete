@@ -96,7 +96,7 @@ DISK_ID=$(echo "$DST_PATH" | $AWK -F. '$NF!=$0 {print $NF}')
 
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
@@ -108,12 +108,12 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-NAME_WWN="${XPATH_ELEMENTS[0]}"
-PERSISTENT="${XPATH_ELEMENTS[1]}"
-CLONE="${XPATH_ELEMENTS[2]}"
-DISK_TYPE="${XPATH_ELEMENTS[3]}"
-IMAGE_ID="${XPATH_ELEMENTS[4]}"
-SYS_DSID="${XPATH_ELEMENTS[5]}"
+NAME_WWN="${XPATH_ELEMENTS[j++]}"
+PERSISTENT="${XPATH_ELEMENTS[j++]}"
+CLONE="${XPATH_ELEMENTS[j++]}"
+DISK_TYPE="${XPATH_ELEMENTS[j++]}"
+IMAGE_ID="${XPATH_ELEMENTS[j++]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 # Exit if persistent
 [ "$PERSISTENT" == "YES" ] && exit 0
@@ -152,17 +152,11 @@ done < <(onedatastore show -x $DSID | $XPATH \
 
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
-SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
-SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
-REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
 # if clone or volatile = non-persistent disk, get right name and wwn
 if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
-    # Disable remote copy for non-persistent disk
-    REMOTE_COPY="NO"
-
     #-------------------------------------------------------------------------------
     # Get system ds information
     #-------------------------------------------------------------------------------
