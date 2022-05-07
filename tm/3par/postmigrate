@@ -70,7 +70,7 @@ fi
 # Unmap luns from host
 #-------------------------------------------------------------------------------
 
-DISK_IDS=$(onevm show $VMID -x | ${DRIVER_PATH}/../../datastore/xpath.rb --stdin '%m%/VM/TEMPLATE/DISK/DISK_ID')
+DISK_IDS=$(echo $TEMPLATE_64 | base64 --decode | ${DRIVER_PATH}/../../datastore/xpath.rb --stdin '%m%/VM/TEMPLATE/DISK/DISK_ID')
 
 for k in $DISK_IDS; do
     XPATH="${DRIVER_PATH}/../../datastore/xpath.rb -b $TEMPLATE_64"
@@ -101,6 +101,8 @@ for k in $DISK_IDS; do
 
     # Readonly and not clone, so this disk can be used by more VMs at the same time
     if [ "$CLONE" == "NO" ] && [ "$READONLY" == "YES" ]; then
+        XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+
         # check if disk is in use by other VMs
         unset i XPATH_ELEMENTS
 
@@ -125,6 +127,7 @@ for k in $DISK_IDS; do
         #-------------------------------------------------------------------------------
         # Get ds information
         #-------------------------------------------------------------------------------
+        XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
         unset i j XPATH_ELEMENTS
 
@@ -155,6 +158,9 @@ for k in $DISK_IDS; do
               error_message "$NAME_WWN"
               exit 1
             fi
+
+            # Disable remote copy for non-persistent disk
+            REMOTE_COPY="NO"
         fi
 
         NAME=$(get_vv_name "$NAME_WWN")
@@ -177,6 +183,16 @@ EOF
         if [ $? -ne 0 ]; then
           error_message "Error unexporting VV"
           exit 1
+        fi
+
+        if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+            python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
+                          -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $SRC_HOST -rc $REMOTE_COPY
+
+            if [ $? -ne 0 ]; then
+              error_message "Error unexporting remote VV"
+              exit 1
+            fi
         fi
     fi
 done

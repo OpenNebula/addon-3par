@@ -92,7 +92,7 @@ ssh_exec_and_log "$SRC_HOST" "$TAR_SSH" "Error copying disk directory to target 
 # Discover luns on dst host
 #--------------------------------------------------------------------------------
 
-DISK_IDS=$(onevm show $VMID -x | ${DRIVER_PATH}/../../datastore/xpath.rb --stdin '%m%/VM/TEMPLATE/DISK/DISK_ID')
+DISK_IDS=$(echo $TEMPLATE_64 | base64 --decode | ${DRIVER_PATH}/../../datastore/xpath.rb --stdin '%m%/VM/TEMPLATE/DISK/DISK_ID')
 
 for k in $DISK_IDS; do
     XPATH="${DRIVER_PATH}/../../datastore/xpath.rb -b $TEMPLATE_64"
@@ -128,6 +128,7 @@ for k in $DISK_IDS; do
         #-------------------------------------------------------------------------------
         # Get ds information
         #-------------------------------------------------------------------------------
+        XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
         unset i j XPATH_ELEMENTS
 
@@ -158,10 +159,34 @@ for k in $DISK_IDS; do
               error_message "$NAME_WWN"
               exit 1
             fi
+
+            # Disable remote copy for non-persistent disk
+            REMOTE_COPY="NO"
         fi
 
         NAME=$(get_vv_name "$NAME_WWN")
         WWN=$(get_vv_wwn "$NAME_WWN")
+
+        if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+            log "Mapping remote $NAME_WWN to $DST_HOST"
+
+            LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
+                          -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $DST_HOST -rc $REMOTE_COPY)
+
+            if [ $? -ne 0 ]; then
+              error_message "$LUN"
+              exit 1
+            fi
+
+            RESCAN_CMD=$(cat <<EOF
+                set -e
+                $(rescan_scsi_bus "$LUN")
+EOF
+)
+
+            ssh_exec_and_log "$DST_HOST" "$RESCAN_CMD" \
+              "Error registering remote $NAME_WWN to $DST_HOST"
+        fi
 
         log "Mapping $NAME_WWN to $DST_HOST"
 

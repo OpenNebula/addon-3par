@@ -171,6 +171,9 @@ if [ "$CLONE" = "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
     error_message "$NAME_WWN"
     exit 1
   fi
+
+  # Disable remote copy for non-persistent disk
+  REMOTE_COPY="NO"
 fi
 
 NAME=$(get_vv_name "$NAME_WWN")
