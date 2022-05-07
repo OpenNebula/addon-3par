@@ -104,6 +104,9 @@ copyVVParser.add_argument('-c', '--cpg', help='Destination VV CPG Name', require
 growVVParser = subparsers.add_parser('growVV', parents=[commonParser], help='Grow VV by specific size')
 growVVParser.add_argument('-n', '--name', help='Name of VV to grow', required=True)
 growVVParser.add_argument('-gb', '--growBy', help='Grow by in MiB', type=int, required=True)
+growVVParser.add_argument('-vi', '--vmId', help='Id of VM')
+growVVParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
+growVVParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # getVVSize task parser
 getVVSizeParser = subparsers.add_parser('getVVSize', parents=[commonParser], help='Get size of VV')
@@ -385,7 +388,19 @@ def copyVV(cl, args):
   cl.copyVolume(srcName, args.destName, args.cpg, optional)
 
 def growVV(cl, args):
-    cl.growVolume(args.name, args.growBy)
+    rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+
+    if args.remoteCopy:
+        cl.stopRemoteCopy(rcgName)
+
+    try:
+        cl.growVolume(args.name, args.growBy)
+    except exceptions.ClientException:
+        if args.remoteCopy:
+            cl.startRemoteCopy(rcgName)
+
+    if args.remoteCopy:
+        cl.startRemoteCopy(rcgName)
 
 def getVVSize(cl, args):
     vv = cl.getVolume(args.name)
