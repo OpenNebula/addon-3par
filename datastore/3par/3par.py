@@ -381,7 +381,7 @@ def copyVV(cl, args):
     srcName = createVVName(args.namingType, args.id)
 
   if snapId != "-1":
-      srcName, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
+      srcName = createSnapshotName(srcName, snapId)
 
   optional = {'skipZero': True}
 
@@ -539,7 +539,7 @@ def createVVSetSnapshot(cl, args):
     # check for soft deleted snapshot
     if args.softDelete:
         for member in members:
-            snapName, metaKey = createSnapshotNameAndMetaKey(member, snapId)
+            snapName = createSnapshotName(member, snapId)
             try:
                 cl.getVolume(snapName)
                 # snap exists, so delete it
@@ -566,11 +566,6 @@ def createVVSetSnapshot(cl, args):
         cl._run(cmd)
     else:
         cl.createSnapshotOfVolumeSet(name, vvsetName, {'readOnly': True})
-
-    # create and add snapshot metadata to all members
-    for member in members:
-        snapName, metaKey = createSnapshotNameAndMetaKey(member, snapId)
-        cl.setVolumeMetaData(member, metaKey, snapName)
 
     print args.snapId
 
@@ -600,7 +595,7 @@ def deleteVVSetSnapshot(cl, args):
 
     # iterate over volumes and find snapshots to delete
     for member in members:
-        name, metaKey = createSnapshotNameAndMetaKey(member, snapId)
+        name = createSnapshotName(member, snapId)
 
         if args.softDelete:
             cl.modifyVolume(name, {'expirationHours': 168})
@@ -608,12 +603,6 @@ def deleteVVSetSnapshot(cl, args):
         else:
             cl.deleteVolume(name)
             args.remoteCopy and scl.deleteVolume(name)
-
-        try:
-            cl.removeVolumeMetaData(member, metaKey)
-        except exceptions.HTTPNotFound:
-            pass
-
 
 
 def createSnapshot(cl, args):
@@ -624,7 +613,7 @@ def createSnapshot(cl, args):
     else:
         srcName = createVVName(args.namingType, args.id)
 
-    name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
+    name = createSnapshotName(srcName, snapId)
 
     # check for soft deleted snapshot
     if args.softDelete:
@@ -650,7 +639,6 @@ def createSnapshot(cl, args):
         optional['syncSnapRcopy'] = True
 
     cl.createSnapshot(name, srcName, optional)
-    cl.setVolumeMetaData(srcName, metaKey, name)
 
 
 def revertSnapshot(cl, args):
@@ -662,7 +650,7 @@ def revertSnapshot(cl, args):
     else:
         srcName = createVVName(args.namingType, args.id)
 
-    name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
+    name = createSnapshotName(srcName, snapId)
 
     optional = {'online': args.online}
 
@@ -710,7 +698,7 @@ def deleteSnapshot(cl, args):
     else:
         srcName = createVVName(args.namingType, args.id)
 
-    name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
+    name = createSnapshotName(srcName, snapId)
 
     if args.softDelete:
         cl.modifyVolume(name, {'expirationHours': 168})
@@ -718,11 +706,6 @@ def deleteSnapshot(cl, args):
     else:
         cl.deleteVolume(name)
         args.remoteCopy and scl.deleteVolume(name)
-
-    try:
-        cl.removeVolumeMetaData(srcName, metaKey)
-    except exceptions.HTTPNotFound:
-        pass
 
 
 def flattenSnapshot(cl, args):
@@ -733,37 +716,31 @@ def flattenSnapshot(cl, args):
     if args.remoteCopy:
         scl = getRemoteSystemClient(args)
 
-    name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
+    name = createSnapshotName(srcName, snapId)
 
     # promote selected snapshot
     cl.promoteVirtualCopy(name)
 
     # delete all snapshots
-    meta = cl.getAllVolumeMetaData(srcName)
-    for data in meta.get('members'):
-        key = data.get('key')
-        if key.startswith('snap'):
-            snap = data.get('value')
-            try:
-                if args.softDelete:
-                    cl.modifyVolume(snap, {'expirationHours': 168})
-                    args.remoteCopy and scl.modifyVolume(name, {'expirationHours': 168})
-                else:
-                    # need to wait for snapshot promoting
-                    done = False
-                    while not done:
-                        try:
-                            cl.deleteVolume(snap)
-                            done = True
-                        except exceptions.HTTPConflict:
-                            time.sleep(5)
+    snapshots = cl.getVolumeSnapshots(srcName)
+    for snap in snapshots:
+        try:
+            if args.softDelete:
+                cl.modifyVolume(snap, {'expirationHours': 168})
+                args.remoteCopy and scl.modifyVolume(snap, {'expirationHours': 168})
+            else:
+                # need to wait for snapshot promoting
+                done = False
+                while not done:
+                    try:
+                        cl.deleteVolume(snap)
+                        done = True
+                    except exceptions.HTTPConflict:
+                        time.sleep(5)
 
-                    args.remoteCopy and scl.deleteVolume(name)
-                # snapshot deleted, remove metadata
-                cl.removeVolumeMetaData(srcName, key)
-            except exceptions.HTTPNotFound:
-                # snapshot already not exists, remove metadata
-                cl.removeVolumeMetaData(srcName, key)
+                args.remoteCopy and scl.deleteVolume(snap)
+        except exceptions.HTTPNotFound:
+            pass
 
 
 def hostExists(cl, args):
@@ -986,11 +963,10 @@ def createVVName(namingType, id):
 def createVmCloneName(namingType, id, vmId):
     return '{namingType}.one.vm.{vmId}.{id}.vv'.format(namingType=namingType, id=id, vmId=vmId)
 
-def createSnapshotNameAndMetaKey(srcName, snapId):
+def createSnapshotName(srcName, snapId):
     name = '{srcName}.{snapId}'.format(srcName=srcName, snapId=snapId)
-    metaKey = 'snap{snapId}'.format(snapId=snapId)
 
-    return name, metaKey
+    return name
 
 def createVVWithName(cl, name, args):
     cpgName = args.cpg
@@ -1020,23 +996,17 @@ def deleteVVWithName(cl, name):
     if args.softDelete:
         cl.modifyVolume(name, {'expirationHours': 168})
         # find and delete snapshots
-        meta = cl.getAllVolumeMetaData(name)
-        for data in meta.get('members'):
-            key = data.get('key')
-            if key.startswith('snap'):
-                snap = data.get('value')
-                cl.modifyVolume(snap, {'expirationHours': 168})
+        snapshots = cl.getVolumeSnapshots(name)
+        for snap in snapshots:
+            cl.modifyVolume(snap, {'expirationHours': 168})
     else:
         try:
             cl.deleteVolume(name)
         except exceptions.HTTPConflict:
             # try to find and delete snapshots
-            meta = cl.getAllVolumeMetaData(name)
-            for data in meta.get('members'):
-                key = data.get('key')
-                if key.startswith('snap'):
-                    snap = data.get('value')
-                    cl.deleteVolume(snap)
+            snapshots = cl.getVolumeSnapshots(name)
+            for snap in snapshots:
+                cl.deleteVolume(snap)
 
             # try delete again
             done = False
