@@ -836,6 +836,8 @@ def addVolumeToRCGroup(cl, args):
         cl.createRemoteCopyGroup(rcgName, targets, optional)
         # modify to add specific options
         cl.modifyRemoteCopyGroup(rcgName, {'targets': [{'policies': policies}]})
+        # modify to add autoSync policy, not exposed via API
+        cl._run(['setrcopygroup', 'pol', 'auto_synchronize', rcgName])
 
     # add volume to rc group
     secVVName = '{name}.r'.format(name=args.name)
