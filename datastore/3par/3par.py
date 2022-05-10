@@ -838,38 +838,45 @@ def addVolumeToRCGroup(cl, args):
         cl.modifyRemoteCopyGroup(rcgName, {'targets': [{'policies': policies}]})
 
     # add volume to rc group
+    secVVName = '{name}.r'.format(name=args.name)
+    volumeAutoCreation = True
+    skipInitialSync = False
+
+    # check if remote VV exist
     try:
-        secVVName = '{name}.r'.format(name=args.name)
-        volumeAutoCreation = True
-        skipInitialSync = False
+        secVV = scl.getVolume(secVVName)
+        if 'expirationTimeSec' in secVV:
+            scl.modifyVolume(secVVName, {'rmExpTime': True})
+        volumeAutoCreation = False
+        skipInitialSync = True
+    except exceptions.HTTPNotFound:
+        pass
 
-        # check if remote VV exist
+    target = {
+        'targetName': targetName,
+        'secVolumeName': secVVName
+    }
+
+    done = False
+    while not done:
         try:
-            secVV = scl.getVolume(secVVName)
-            if 'expirationTimeSec' in secVV:
-                scl.modifyVolume(secVVName, {'rmExpTime': True})
-            volumeAutoCreation = False
-            skipInitialSync = True
-        except exceptions.HTTPNotFound:
-            pass
+            print 'Add volume to Remote Copy group'
+            cl.addVolumeToRemoteCopyGroup(rcgName, args.name, [target], {
+                'volumeAutoCreation': volumeAutoCreation,
+                'skipInitialSync': skipInitialSync
+            })
 
-        target = {
-            'targetName': targetName,
-            'secVolumeName': secVVName
-        }
+            done = True
 
-        print 'Add volume to Remote Copy group'
-        cl.addVolumeToRemoteCopyGroup(rcgName, args.name, [target], {
-            'volumeAutoCreation': volumeAutoCreation,
-            'skipInitialSync': skipInitialSync
-        })
-
-        # start rc group
-        if shouldStartRcg:
-            print 'Start Remote Copy group'
-            cl.startRemoteCopy(rcgName)
-    except exceptions.HTTPConflict as ex:
-        print str(ex)
+            # start rc group
+            if shouldStartRcg:
+                print 'Start Remote Copy group'
+                cl.startRemoteCopy(rcgName)
+        except exceptions.HTTPForbidden:
+            # there can be physical copy in progress, so we need wait and retry
+            time.sleep(5)
+        except exceptions.HTTPConflict as e:
+            print str(e)
 
     scl.logout()
 
