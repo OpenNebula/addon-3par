@@ -78,6 +78,7 @@ LCM_STATE=`lcm_state`
 
 if [ `is_disk $DST_PATH` -eq 0 ]; then
     # VM is in unknown state, SRC_HOST probably in failed state
+    # PROLOG_MIGRATE_UNKNOWN PROLOG_MIGRATE_UNKNOWN_FAILURE
     if [ $LCM_STATE -eq 60 ] || [ $LCM_STATE -eq 61 ]; then
       log "Not moving files from $SRC_HOST in FT mode"
       exit 0
@@ -245,6 +246,30 @@ EOF
         if [ $? -ne 0 ]; then
           error_message "Error unexporting remote VV"
           exit 1
+        fi
+    fi
+
+    # VM lcm state is EPILOG_UNDEPLOY
+    if [ $LCM_STATE -eq 30 ]; then
+        # perform cleanup
+        if [ "$REMOTE_COPY" == "YES" ]; then
+            log "Remove disk from Remote Copy group"
+            RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromRCGroup -a $API_ENDPOINT -i $IP \
+                -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
+
+            if [ $? -ne 0 ]; then
+              error_message "$RCG"
+              exit 1
+            fi
+        else
+            log "Remove disk from VM VV Set"
+            VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP \
+                    -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
+
+            if [ $? -ne 0 ]; then
+              error_message "$VVSET"
+              exit 1
+            fi
         fi
     fi
 fi
