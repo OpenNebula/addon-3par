@@ -131,53 +131,32 @@ if [ "$CLONE" == "NO" ] && [ "$DISK_TYPE" == "BLOCK" ]; then
 fi
 
 #-------------------------------------------------------------------------------
-# Get image ds information
+# Get system ds information
 #-------------------------------------------------------------------------------
 
 unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
-  XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $DSID | $XPATH \
-                        /DATASTORE/TEMPLATE/API_ENDPOINT \
-                        /DATASTORE/TEMPLATE/IP \
-                        /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
-                        /DATASTORE/TEMPLATE/SEC_IP \
-                        /DATASTORE/TEMPLATE/REMOTE_COPY \
-                        /DATASTORE/TEMPLATE/NAMING_TYPE \
-                        /DATASTORE/TEMPLATE/QOS_ENABLE)
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                            /DATASTORE/TEMPLATE/API_ENDPOINT \
+                            /DATASTORE/TEMPLATE/IP \
+                            /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                            /DATASTORE/TEMPLATE/SEC_IP \
+                            /DATASTORE/TEMPLATE/REMOTE_COPY \
+                            /DATASTORE/TEMPLATE/QOS_ENABLE)
 
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
 SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
 SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
 REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
-NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
 # if clone or volatile = non-persistent disk, get right name and wwn
 if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
     # Disable remote copy for non-persistent disk
     REMOTE_COPY="NO"
-
-    #-------------------------------------------------------------------------------
-    # Get system ds information
-    #-------------------------------------------------------------------------------
-
-    unset i j XPATH_ELEMENTS
-
-    while IFS= read -r -d '' element; do
-        XPATH_ELEMENTS[i++]="$element"
-    done < <(onedatastore show -x $SYS_DSID | $XPATH \
-                                /DATASTORE/TEMPLATE/API_ENDPOINT \
-                                /DATASTORE/TEMPLATE/IP \
-                                /DATASTORE/TEMPLATE/NAMING_TYPE \
-                                /DATASTORE/TEMPLATE/QOS_ENABLE)
-
-    API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
-    IP="${XPATH_ELEMENTS[j++]:-$IP}"
-    NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
-    QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
     # get VM disk WWN
     NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE \

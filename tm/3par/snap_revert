@@ -86,33 +86,25 @@ if [ "$CLONE" != "YES" ]; then
 fi
 
 #-------------------------------------------------------------------------------
-# Get ds information
+# Get system ds information
 #-------------------------------------------------------------------------------
-# if clone or volatile = non-persistent disk
-if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
-  DSID=$SYS_DSID
-else
-  DSID=$IMG_DSID
-fi
 
 unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $DSID | $XPATH \
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
                   /DATASTORE/TEMPLATE/API_ENDPOINT \
                   /DATASTORE/TEMPLATE/IP \
                   /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
                   /DATASTORE/TEMPLATE/SEC_IP \
-                  /DATASTORE/TEMPLATE/REMOTE_COPY \
-                  /DATASTORE/TEMPLATE/NAMING_TYPE)
+                  /DATASTORE/TEMPLATE/REMOTE_COPY)
 
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
 SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
 SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
 REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
-NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
 
 # if clone or volatile = non-persistent disk
 if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then

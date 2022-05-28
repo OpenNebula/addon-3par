@@ -49,14 +49,10 @@ while IFS= read -r -d '' element; do
 done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/ID \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/API_ENDPOINT \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/IP \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_IP \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/REMOTE_COPY \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/THIN \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/DEDUP \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/COMPRESSION \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE \
                     /DS_DRIVER_ACTION_DATA/IMAGE/NAME \
                     /DS_DRIVER_ACTION_DATA/IMAGE/SIZE \
                     /DS_DRIVER_ACTION_DATA/IMAGE/CLONING_ID)
@@ -66,39 +62,15 @@ unset i
 DSID="${XPATH_ELEMENTS[i++]}"
 API_ENDPOINT="${XPATH_ELEMENTS[i++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[i++]:-$IP}"
-SEC_API_ENDPOINT="${XPATH_ELEMENTS[i++]:-$SEC_API_ENDPOINT}"
-SEC_IP="${XPATH_ELEMENTS[i++]:-$SEC_IP}"
-REMOTE_COPY="${XPATH_ELEMENTS[i++]:-$REMOTE_COPY}"
 CPG="${XPATH_ELEMENTS[i++]:-$CPG}"
 THIN="${XPATH_ELEMENTS[i++]:-$THIN}"
 DEDUP="${XPATH_ELEMENTS[i++]:-$DEDUP}"
 COMPRESSION="${XPATH_ELEMENTS[i++]:-$COMPRESSION}"
-NAMING_TYPE="${XPATH_ELEMENTS[i++]:-$NAMING_TYPE}"
 NAME="${XPATH_ELEMENTS[i++]//[^A-Za-z0-9\[\]() _~+-]/}"
 SIZE="${XPATH_ELEMENTS[i++]}"
 CLONING_ID="${XPATH_ELEMENTS[i++]}"
 
-# Get source image properties
-unset i XPATH_ELEMENTS
-XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
-while IFS= read -r -d '' element; do
-    XPATH_ELEMENTS[i++]="$element"
-done < <(oneimage show -x $CLONING_ID| $XPATH \
-                    /IMAGE/DATASTORE_ID)
-
-SRC_DSID=${XPATH_ELEMENTS[0]}
-
-# Get source datastore properties
-unset i XPATH_ELEMENTS
-XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
-while IFS= read -r -d '' element; do
-    XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SRC_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
-
-SRC_NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
-
 # -------- Clone image ------------
-
 python ${DRIVER_PATH}/3par.py cloneVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                -snt $SRC_NAMING_TYPE -sid $CLONING_ID -nt $NAMING_TYPE -id $ID \
+                                -snt $NAMING_TYPE -sid $CLONING_ID -nt $NAMING_TYPE -id $ID \
                                 -tpvv $THIN -tdvv $DEDUP -compr $COMPRESSION -c $CPG -sz $SIZE -co "$NAME"
