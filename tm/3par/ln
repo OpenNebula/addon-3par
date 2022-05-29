@@ -29,7 +29,7 @@
 #   - host is the target host to deploy the VM
 #   - remote_system_ds is the path for the system datastore in the host
 #   - vmid is the id of the VM
-#   - dsid is the target datastore (0 is the system datastore)
+#   - dsid is the source datastore (0 is the system datastore)
 
 # ------------ Set up the environment to source common tools ------------
 
@@ -78,11 +78,11 @@ unset i j XPATH_ELEMENTS
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onevm show -x $VMID | $XPATH \
-                  /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID \
-                  /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID)
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
+                    /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-SRC_DSID="${XPATH_ELEMENTS[j++]}"
 IMAGE_ID="${XPATH_ELEMENTS[j++]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 #-------------------------------------------------------------------------------
 # Get image ds information
@@ -92,7 +92,7 @@ unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SRC_DSID | $XPATH /DATASTORE/TEMPLATE/CPG)
+done < <(onedatastore show -x $DSID | $XPATH /DATASTORE/TEMPLATE/CPG)
 
 
 CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
@@ -105,7 +105,7 @@ unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $DSID | $XPATH \
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
                                 /DATASTORE/TEMPLATE/API_ENDPOINT \
                                 /DATASTORE/TEMPLATE/IP \
                                 /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
