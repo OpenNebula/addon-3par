@@ -149,7 +149,7 @@ if [ "$REMOTE_COPY" == "YES" ]; then
     fi
 
     log "Add info about RC to image template"
-    imageUpdate $IMAGE_ID "RC=YES"
+    imageUpdate $IMAGE_ID "RC=YES RC_SYSTEM_DS_ID=$SYS_DSID"
 else
     log "Add disk to VM VV Set"
     VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToVVSet -a $API_ENDPOINT -i $IP -s $SECURE \
