@@ -317,11 +317,18 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
                   exit 1
                 fi
             fi
+
+            log "Remove disk from non-RC VM VV Set"
+            VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP \
+                    -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
+
+            if [ $? -ne 0 ]; then
+              error_message "$VVSET"
+              exit 1
+            fi
         fi
 
         if [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
-            # TODO: fix when RC group and RC volume doesnt exists
-            # VM undeployed from non-RC system DS and resumed to RC system DS
             log "Mapping remote $WWN to $DST_HOST"
 
             LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
