@@ -105,15 +105,13 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DISK_TYPE \
-                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
-                    /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID)
 
 NAME_WWN="${XPATH_ELEMENTS[j++]}"
 PERSISTENT="${XPATH_ELEMENTS[j++]}"
 CLONE="${XPATH_ELEMENTS[j++]}"
 DISK_TYPE="${XPATH_ELEMENTS[j++]}"
 IMAGE_ID="${XPATH_ELEMENTS[j++]}"
-SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 # Not persistent and not clone, so this disk can be used by more VMs at the same time
 if [ "$CLONE" == "NO" ] && [ "$DISK_TYPE" == "BLOCK" ]; then
@@ -138,7 +136,7 @@ unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SYS_DSID | $XPATH \
+done < <(onedatastore show -x $DSID | $XPATH \
                             /DATASTORE/TEMPLATE/API_ENDPOINT \
                             /DATASTORE/TEMPLATE/IP \
                             /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
