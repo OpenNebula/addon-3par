@@ -133,13 +133,6 @@ DISK_TYPE="${XPATH_ELEMENTS[j++]}"
 IMG_DSID="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
-# if clone or volatile = non-persistent disk
-if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
-  DSID=$SYS_DSID
-else
-  DSID=$IMG_DSID
-fi
-
 #-------------------------------------------------------------------------------
 # Get system ds information
 #-------------------------------------------------------------------------------
@@ -274,6 +267,8 @@ fi
 
 if [ "$DST_HOST_3PAR" == "1" ]; then
     if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+        # TODO: fix when RC group and RC volume doesnt exists
+        # VM undeployed from non-RC system DS and resumed to RC system DS
         log "Mapping remote $SRC to $DST_HOST"
 
         LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
