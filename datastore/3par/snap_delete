@@ -49,18 +49,36 @@ unset i j XPATH_ELEMENTS
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <($XPATH     /DS_DRIVER_ACTION_DATA/IMAGE/TARGET_SNAPSHOT \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/RC \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/RC_SYSTEM_DS_ID \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/API_ENDPOINT \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/IP \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_IP \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/REMOTE_COPY)
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/IP)
 
 SNAP_ID="${XPATH_ELEMENTS[j++]}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
-SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
-SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
-REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 
-python ${DRIVER_PATH}/3par.py deleteSnapshot -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE \
+if [ "$REMOTE_COPY" == "YES" ]; then
+  #-------------------------------------------------------------------------------
+  # Get system ds information
+  #-------------------------------------------------------------------------------
+
+  unset i j XPATH_ELEMENTS
+
+  while IFS= read -r -d '' element; do
+      XPATH_ELEMENTS[i++]="$element"
+  done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                          /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                          /DATASTORE/TEMPLATE/SEC_IP)
+
+  SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+  SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+
+  python ${DRIVER_PATH}/3par.py deleteSnapshot -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE \
             -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $ID -si $SNAP_ID -rc $REMOTE_COPY
+else
+  python ${DRIVER_PATH}/3par.py deleteSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
+                                                -nt $NAMING_TYPE -id $ID -si $SNAP_ID
+fi
