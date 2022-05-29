@@ -64,6 +64,19 @@ function get_vv_wwn {
   echo "$NAME_WWN" | $AWK -F: '{print $2}'
 }
 
+function imageUpdate {
+  local ID
+  local DATA
+  ID="$1"
+  DATA="$2"
+
+  _TEMPLATE=$(mktemp -t oneimageUpdate-XXXXXXXXXX)
+  trap "rm -f \"$_TEMPLATE\"" TERM INT QUIT HUP EXIT
+  echo $DATA > $_TEMPLATE
+
+  oneimage update $ID -a $_TEMPLATE
+}
+
 function discover_lun {
     local LUN
     local WWN

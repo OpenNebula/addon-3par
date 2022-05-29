@@ -77,9 +77,12 @@ unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onevm show -x $VMID | $XPATH /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID)
+done < <(onevm show -x $VMID | $XPATH \
+                  /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID \
+                  /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID)
 
 SRC_DSID="${XPATH_ELEMENTS[j++]}"
+IMAGE_ID="${XPATH_ELEMENTS[j++]}"
 
 #-------------------------------------------------------------------------------
 # Get image ds information
@@ -144,6 +147,9 @@ if [ "$REMOTE_COPY" == "YES" ]; then
       error_message "$RCG"
       exit 1
     fi
+
+    log "Add info about RC to image template"
+    imageUpdate $IMAGE_ID "RC=YES"
 else
     log "Add disk to VM VV Set"
     VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToVVSet -a $API_ENDPOINT -i $IP -s $SECURE \
