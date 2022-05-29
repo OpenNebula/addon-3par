@@ -145,13 +145,29 @@ done < <(onedatastore show -x $SYS_DSID | $XPATH \
                     /DATASTORE/TEMPLATE/IP \
                     /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
                     /DATASTORE/TEMPLATE/SEC_IP \
-                    /DATASTORE/TEMPLATE/REMOTE_COPY)
+                    /DATASTORE/TEMPLATE/REMOTE_COPY \
+                    /DATASTORE/TEMPLATE/SEC_CPG \
+                    /DATASTORE/TEMPLATE/QOS_ENABLE \
+                    /DATASTORE/TEMPLATE/QOS_PRIORITY \
+                    /DATASTORE/TEMPLATE/QOS_MAX_IOPS \
+                    /DATASTORE/TEMPLATE/QOS_MIN_IOPS \
+                    /DATASTORE/TEMPLATE/QOS_MAX_BW \
+                    /DATASTORE/TEMPLATE/QOS_MIN_BW \
+                    /DATASTORE/TEMPLATE/QOS_LATENCY)
 
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
 SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
 SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
 REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+SEC_CPG="${XPATH_ELEMENTS[j++]:-$SEC_CPG}"
+QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
+QOS_PRIORITY="${XPATH_ELEMENTS[j++]:-$QOS_PRIORITY}"
+QOS_MAX_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MAX_IOPS}"
+QOS_MIN_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MIN_IOPS}"
+QOS_MAX_BW="${XPATH_ELEMENTS[j++]:-$QOS_MAX_BW}"
+QOS_MIN_BW="${XPATH_ELEMENTS[j++]:-$QOS_MIN_BW}"
+QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
 
 # Disk os clone or volatile, so copy was created
 if [ "$CLONE" = "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
@@ -199,7 +215,7 @@ if [ "$PERSISTENT" != "YES" ] && [ "$CLONE" == "NO" ]; then
 
     while IFS= read -r -d '' element; do
         XPATH_ELEMENTS[i++]="$element"
-    done < <(oneimage show -x $IMAGE_ID| $XPATH /IMAGE/RUNNING_VMS)
+    done < <(oneimage show -x $IMAGE_ID | $XPATH /IMAGE/RUNNING_VMS)
 
     RUNNING_VMS="${XPATH_ELEMENTS[0]}"
 
@@ -266,27 +282,65 @@ EOF
 fi
 
 if [ "$DST_HOST_3PAR" == "1" ]; then
-    if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
-        # TODO: fix when RC group and RC volume doesnt exists
-        # VM undeployed from non-RC system DS and resumed to RC system DS
-        log "Mapping remote $SRC to $DST_HOST"
+    if [ "$REMOTE_COPY" == "YES" ]; then
+        unset i j XPATH_ELEMENTS
 
-        LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
-                      -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $DST_HOST -rc $REMOTE_COPY)
+        while IFS= read -r -d '' element; do
+            XPATH_ELEMENTS[i++]="$element"
+        done < <(oneimage show -x $IMAGE_ID | $XPATH /IMAGE/TEMPLATE/RC)
 
-        if [ $? -ne 0 ]; then
-          error_message "$LUN"
-          exit 1
+        IMAGE_REMOTE_COPY="${XPATH_ELEMENTS[j++]}"
+
+        if [ "$IMAGE_REMOTE_COPY" != "YES" ]; then
+            log "Create remote copy group"
+            RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToRCGroup -a $API_ENDPOINT -i $IP \
+              -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID \
+              -c $CPG -sc $SEC_CPG -rcm $REMOTE_COPY_MODE)
+
+            if [ $? -ne 0 ]; then
+              error_message "$RCG"
+              exit 1
+            fi
+
+            log "Add info about RC to image template"
+            imageUpdate $IMAGE_ID "RC=YES RC_SYSTEM_DS_ID=$SYS_DSID"
+
+            if [ "$QOS_ENABLE" == "YES" ]; then
+                log "Create QoS Policy"
+                QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP \
+                      -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
+                      -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS -qxb $QOS_MAX_BW \
+                      -qmb $QOS_MIN_BW -ql $QOS_LATENCY -rc $REMOTE_COPY)
+
+                if [ $? -ne 0 ]; then
+                  error_message "$QOS"
+                  exit 1
+                fi
+            fi
         fi
 
-        RESCAN_CMD=$(cat <<EOF
-            set -e
-            $(rescan_scsi_bus "$LUN")
+        if [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+            # TODO: fix when RC group and RC volume doesnt exists
+            # VM undeployed from non-RC system DS and resumed to RC system DS
+            log "Mapping remote $WWN to $DST_HOST"
+
+            LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
+                          -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $DST_HOST -rc $REMOTE_COPY)
+
+            if [ $? -ne 0 ]; then
+              error_message "$LUN"
+              exit 1
+            fi
+
+            RESCAN_CMD=$(cat <<EOF
+                set -e
+                $(rescan_scsi_bus "$LUN")
 EOF
 )
 
-        ssh_exec_and_log "$DST_HOST" "$RESCAN_CMD" \
-          "Error registering remote $SRC to $DST_HOST"
+            ssh_exec_and_log "$DST_HOST" "$RESCAN_CMD" \
+              "Error registering remote $SRC to $DST_HOST"
+        fi
     fi
 
     log "Mapping $NAME_WWN to $DST_HOST"
