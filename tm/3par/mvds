@@ -94,7 +94,7 @@ unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $DSID | $XPATH \
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
                         /DATASTORE/TEMPLATE/API_ENDPOINT \
                         /DATASTORE/TEMPLATE/IP \
                         /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
