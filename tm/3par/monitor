@@ -64,12 +64,17 @@ REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
 MONITOR_VM_DISKS="${XPATH_ELEMENTS[j++]}"
 
+if [ -d "${0%/*}/../../im/kvm-probes.d/vm/monitor" ]; then
+  LEGACY_MONITORING=0
+else
+    LEGACY_MONITORING=1
+fi
+
 # ------------ Compute datastore usage -------------
 
 MONITOR_DATA=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -s $SECURE \
                                                                                 -u $USERNAME -p $PASSWORD -c $CPG)
 MONITOR_STATUS=$?
-
 
 if [ $MONITOR_VM_DISKS -eq 1 ]; then
   MONITOR_DATA_VMS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorVmDisks -a $API_ENDPOINT -i $IP \
@@ -80,7 +85,7 @@ fi
 echo $MONITOR_DATA
 
 if [ $MONITOR_VM_DISKS -eq 1 ]; then
-  if [ -d "${0%/*}/../../im/kvm-probes.d/vm/monitor" ]; then
+  if [ $LEGACY_MONITORING -eq 0 ]; then
       send_to_monitor MONITOR_VM $MONITOR_VMS_STATUS -1 "$MONITOR_DATA_VMS"
   else
       echo $MONITOR_DATA_VMS
