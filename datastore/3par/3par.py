@@ -51,10 +51,12 @@ commonParser.add_argument('-sd', '--softDelete', help='Soft-delete volumes/snaps
 # MonitorCPG task parser
 monitorCPGParser = subparsers.add_parser('monitorCPG', parents=[commonParser], help='Get CPG Available Space')
 monitorCPGParser.add_argument('-c', '--cpg', help='CPG Name', required=True)
-monitorCPGParser.add_argument('-d', '--disks', help='Return disks info', type=boolarg, default=False)
-monitorCPGParser.add_argument('-di', '--datastoreId', help='DS ID', type=int)
-monitorCPGParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
-monitorCPGParser.add_argument('-lf', '--legacyFormat', help='Legacy format to support OpenNebula <5.12', type=boolarg, default=False)
+
+# MonitorVmDisks task parser
+monitorVmDisksParser = subparsers.add_parser('monitorVmDisks', parents=[commonParser], help='Get VM disk stats')
+monitorVmDisksParser.add_argument('-di', '--datastoreId', help='DS ID', type=int)
+monitorVmDisksParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
+monitorVmDisksParser.add_argument('-lf', '--legacyFormat', help='Legacy format to support OpenNebula <5.12', type=boolarg, default=False)
 
 # CreateVV task parser
 createVVParser = subparsers.add_parser('createVV', parents=[commonParser], help='Create new VV')
@@ -298,49 +300,50 @@ def monitorCPG(cl, args):
     print 'TOTAL_MB={total}'.format(total=total)
     print 'FREE_MB={free}'.format(free=free)
 
-    if args.disks == True:
-      import subprocess
-      import xmltodict
-      from base64 import b64encode
-      
-      vvs = cl.getVolumes()
-      diskSizes = {}
 
-      for vv in vvs.get('members'):
-        diskSizes[vv.get('name')] = vv.get('userSpace').get('usedMiB')
-      
-      vmsXml = subprocess.check_output('onevm list --extended -x', shell=True)
-      vms = xmltodict.parse(vmsXml, force_list=('VM',))
-      if vms['VM_POOL'] is None:
-        return
-      for vm in vms.get('VM_POOL')['VM']:
-        if args.datastoreId != int(vm.get('HISTORY_RECORDS')['HISTORY'].get('DS_ID')):
-          continue
-        
-        if args.legacyFormat:
-          result = 'VM=[ID={vmId},POLL="'.format(vmId=vm.get('ID'))
+def monitorVmDisks(cl, args):
+    import subprocess
+    import xmltodict
+    from base64 import b64encode
+
+    vvs = cl.getVolumes()
+    diskSizes = {}
+
+    for vv in vvs.get('members'):
+      diskSizes[vv.get('name')] = vv.get('userSpace').get('usedMiB')
+
+    vmsXml = subprocess.check_output('onevm list --extended -x', shell=True)
+    vms = xmltodict.parse(vmsXml, force_list=('VM',))
+    if vms['VM_POOL'] is None:
+      return
+    for vm in vms.get('VM_POOL')['VM']:
+      if args.datastoreId != int(vm.get('HISTORY_RECORDS')['HISTORY'].get('DS_ID')):
+        continue
+
+      if args.legacyFormat:
+        result = 'VM=[ID={vmId},POLL="'.format(vmId=vm.get('ID'))
+      else:
+        result = 'VM=[ID={vmId},MONITOR="'.format(vmId=vm.get('ID'))
+
+      disks = vm.get('TEMPLATE').get('DISK')
+      if isinstance(disks,dict):
+        disks = [disks]
+
+      diskResult = []
+      for disk in disks:
+        if disk.get('CLONE') == 'YES' or disk.get('SOURCE') is None or disk.get('SOURCE') == '':
+          name = '{namingType}.one.vm.{vmId}.{diskId}.vv'.format(namingType=args.namingType, vmId=vm.get('ID'), diskId=disk.get('DISK_ID'))
         else:
-          result = 'VM=[ID={vmId},MONITOR="'.format(vmId=vm.get('ID'))
-        
-        disks = vm.get('TEMPLATE').get('DISK')
-        if isinstance(disks,dict):
-          disks = [disks]
+          source = disk.get('SOURCE').split(':')
+          name = source[0]
 
-        diskResult = []
-        for disk in disks:
-          if disk.get('CLONE') == 'YES' or disk.get('SOURCE') is None or disk.get('SOURCE') == '':
-            name = '{namingType}.one.vm.{vmId}.{diskId}.vv'.format(namingType=args.namingType, vmId=vm.get('ID'), diskId=disk.get('DISK_ID'))
-          else:
-            source = disk.get('SOURCE').split(':')
-            name = source[0]
+        if name in diskSizes:
+          diskResult.append('DISK_SIZE=[ID={diskId},SIZE={diskSize}]'.format(diskId=disk.get('DISK_ID'), diskSize=diskSizes[name]))
 
-          if name in diskSizes:
-            diskResult.append('DISK_SIZE=[ID={diskId},SIZE={diskSize}]'.format(diskId=disk.get('DISK_ID'), diskSize=diskSizes[name]))
-       
-        if args.legacyFormat:
-            print result + ' '.join(diskResult) + '"]'
-        else:
-            print result + b64encode(' '.join(diskResult).encode('ascii')).decode('ascii') + '"]'
+      if args.legacyFormat:
+          print result + ' '.join(diskResult) + '"]'
+      else:
+          print result + b64encode(' '.join(diskResult).encode('ascii')).decode('ascii') + '"]'
 
 def createVV(cl, args):
     name = createVVName(args.namingType, args.id)
