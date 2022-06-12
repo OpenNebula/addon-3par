@@ -283,49 +283,39 @@ fi
 
 if [ "$DST_HOST_3PAR" == "1" ]; then
     if [ "$REMOTE_COPY" == "YES" ]; then
-        unset i j XPATH_ELEMENTS
+        log "Create remote copy group"
+        RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToRCGroup -a $API_ENDPOINT -i $IP \
+          -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID \
+          -c $CPG -sc $SEC_CPG -rcm $REMOTE_COPY_MODE)
 
-        while IFS= read -r -d '' element; do
-            XPATH_ELEMENTS[i++]="$element"
-        done < <(oneimage show -x $IMAGE_ID | $XPATH /IMAGE/TEMPLATE/RC)
+        if [ $? -ne 0 ]; then
+          error_message "$RCG"
+          exit 1
+        fi
 
-        IMAGE_REMOTE_COPY="${XPATH_ELEMENTS[j++]}"
+        log "Add info about RC to image template"
+        imageUpdate $IMAGE_ID "RC=YES RC_SYSTEM_DS_ID=$SYS_DSID"
 
-        if [ "$IMAGE_REMOTE_COPY" != "YES" ]; then
-            log "Create remote copy group"
-            RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToRCGroup -a $API_ENDPOINT -i $IP \
-              -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID \
-              -c $CPG -sc $SEC_CPG -rcm $REMOTE_COPY_MODE)
-
-            if [ $? -ne 0 ]; then
-              error_message "$RCG"
-              exit 1
-            fi
-
-            log "Add info about RC to image template"
-            imageUpdate $IMAGE_ID "RC=YES RC_SYSTEM_DS_ID=$SYS_DSID"
-
-            if [ "$QOS_ENABLE" == "YES" ]; then
-                log "Create QoS Policy"
-                QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP \
-                      -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
-                      -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS -qxb $QOS_MAX_BW \
-                      -qmb $QOS_MIN_BW -ql $QOS_LATENCY -rc $REMOTE_COPY)
-
-                if [ $? -ne 0 ]; then
-                  error_message "$QOS"
-                  exit 1
-                fi
-            fi
-
-            log "Remove disk from non-RC VM VV Set"
-            VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP \
-                    -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
+        if [ "$QOS_ENABLE" == "YES" ]; then
+            log "Create QoS Policy"
+            QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP \
+                  -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
+                  -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS -qxb $QOS_MAX_BW \
+                  -qmb $QOS_MIN_BW -ql $QOS_LATENCY -rc $REMOTE_COPY)
 
             if [ $? -ne 0 ]; then
-              error_message "$VVSET"
+              error_message "$QOS"
               exit 1
             fi
+        fi
+
+        log "Remove disk from non-RC VM VV Set"
+        VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP \
+                -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
+
+        if [ $? -ne 0 ]; then
+          error_message "$VVSET"
+          exit 1
         fi
 
         if [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
