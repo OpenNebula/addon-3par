@@ -214,4 +214,4 @@ ssh_exec_and_log "$DST_HOST" "$FLUSH_CMD" \
 
 python ${DRIVER_PATH}/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $DST_HOST
 
-echo $NAME_WWN
+echo "$NAME_WWN raw"
