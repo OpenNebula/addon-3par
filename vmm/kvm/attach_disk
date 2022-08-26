@@ -81,12 +81,26 @@ WRITE_IOPS_SEC_MAX_LENGTH=${WRITE_IOPS_SEC_MAX_LENGTH:-${DEFAULT_ATTACH_WRITE_IO
 WRITE_IOPS_SEC_MAX=${WRITE_IOPS_SEC_MAX:-${DEFAULT_ATTACH_WRITE_IOPS_SEC_MAX}}
 
 # BEGIN 3PAR patch
+DRIVER_PATH=$(dirname $0)
+
+sDev="$(readlink "$SOURCE")"
+
 if [ "$DEVICE" = "disk" ] && [ "$TYPE_XML" = "file" ] && [ "$TYPE_SOURCE" = "file" ]; then
-    sDev="$(readlink -f "$SOURCE")"
     if [ "${sDev:0:11}" = "/dev/mapper" ]; then
         TYPE_XML=block
         TYPE_SOURCE=dev
     fi
+fi
+
+if [ "${sDev:0:11}" = "/dev/mapper" ]; then
+  WWID=${sDev:12}
+
+  CHECK=$(python ${DRIVER_PATH}/../checkMultipath.py $WWID)
+
+  if [ $? -ne 0 ]; then
+    error_message "Could not attach ${SOURCE} (${TARGET}) to ${DOMAIN}, multipath device have multiple targets! $CHECK"
+    exit 1
+  fi
 fi
 # END 3PAR patch
 

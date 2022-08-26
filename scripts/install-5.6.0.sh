@@ -35,6 +35,20 @@ cp $CP_ARG "$CWD/vmm/kvm/"snapshot_*-3par "${ONE_VAR}/remotes/vmm/kvm/"
 chmod a+x "${ONE_VAR}/remotes/vmm/kvm/"snapshot_*-3par
 chown oneadmin: "${ONE_VAR}/remotes/vmm/kvm/"snapshot_*-3par
 
+echo "*** Copy VMM deploy and attach_disk scripts to ${ONE_VAR}/remotes/vmm/kvm/ ..."
+cp $CP_ARG "$CWD/vmm/kvm/deploy" "${ONE_VAR}/remotes/vmm/kvm/"
+cp $CP_ARG "$CWD/vmm/kvm/attach_disk" "${ONE_VAR}/remotes/vmm/kvm/"
+chmod a+x "${ONE_VAR}/remotes/vmm/kvm/deploy"
+chmod a+x "${ONE_VAR}/remotes/vmm/kvm/attach_disk"
+chown oneadmin: "${ONE_VAR}/remotes/vmm/kvm/deploy"
+chown oneadmin: "${ONE_VAR}/remotes/vmm/kvm/attach_disk"
+
+echo "*** Copy checkMultipath.py and dmmp.py scripts to ${ONE_VAR}/remotes/vmm/ ..."
+cp $CP_ARG "$CWD/vmm/checkMultipath.py" "${ONE_VAR}/remotes/vmm/"
+cp $CP_ARG "$CWD/vmm/dmmp.py" "${ONE_VAR}/remotes/vmm/"
+chown oneadmin: "${ONE_VAR}/remotes/vmm/checkMultipath.py"
+chown oneadmin: "${ONE_VAR}/remotes/vmm/dmmp.py"
+
 # Enable 3PAR in oned.conf
 if grep -q -i 3par /etc/one/oned.conf >/dev/null 2>&1; then
     echo "*** 3PAR is already enabled in /etc/one/oned.conf"
