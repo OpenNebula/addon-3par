@@ -23,9 +23,12 @@ More info:
 ## Compatibility
 
 This add-on is developed and tested with:
-- OpenNebula 5.6 and 3PAR OS 3.2.2.612 (MU4)+P51,P56,P59,P94,P98,P102,P106,P113,P118,P127  
-- OpenNebula 5.8 and 3PAR OS 3.3.1.410 (MU2)+P32,P34,P36,P37,P39,P40,P41,P42,P45,P48
+- OpenNebula 6.2 and 3PAR OS 3.3.1.648 (MU5)+P125,P126,P132,P135,P140,P146,P150,P151,P155,P156,P164,P170,P173
+- OpenNebula 5.10 and 3PAR OS 3.3.1.648 (MU5)+P125,P126,P132,P135,P140,P146,P150,P151
 - OpenNebula 5.8 and 3PAR OS 3.3.1.460 (MU3)+P50,P58,P61,P77,P78,P81
+- OpenNebula 5.8 and 3PAR OS 3.3.1.410 (MU2)+P32,P34,P36,P37,P39,P40,P41,P42,P45,P48
+- OpenNebula 5.6 and 3PAR OS 3.2.2.612 (MU4)+P51,P56,P59,P94,P98,P102,P106,P113,P118,P127
+
 
 ## Requirements
 
@@ -35,10 +38,9 @@ This add-on is developed and tested with:
 * Password-less SSH access from the front-end `oneadmin` user to the `node` instances.
 * 3PAR python package `python-3parclient` installed, WSAPI username, password and access to the 3PAR API network
 * libvirt-client package installed
-* xmlstarlet package installed - used in TM monitor script instead of OpenNebula native ruby script because it is slow
 
 ```bash
-yum install python-setuptools libvirt-client xmlstarlet
+yum install python-setuptools libvirt-client
 easy_install pip
 pip install python-3parclient
 ```
@@ -51,11 +53,16 @@ pip install python-3parclient
 * sg3_utils package installed
 * `/etc/multipath.conf` need to have set `user_friendly_names no`, because we use WWNs instead of `mpathx` aliasses
 * `/etc/sudoers.d/opennebula` - add `ONE_3PAR` cmd alias
+* `/etc/sudoers.d/opennebula-node-kvm` - add `ONE_3PAR` alias to the list
 
 ```
 nano /etc/sudoers.d/opennebula
 ...
 Cmnd_Alias ONE_3PAR = /sbin/multipath, /usr/sbin/multipathd, /sbin/dmsetup, /usr/sbin/blockdev, /usr/bin/tee /sys/block/*/device/delete, /usr/bin/rescan-scsi-bus.sh
+...
+
+nano /etc/sudoers.d/opennebula-node-kmv
+...
 oneadmin ALL=(ALL) NOPASSWD: ONE_MISC, ..., ONE_3PAR, ...
 ...
 ```
@@ -83,12 +90,12 @@ Support standard OpenNebula datastore operations:
 
 1. Tested only with KVM hypervisor
 1. When SYSTEM datastore is in use the reported free/used/total space is the space on 3PAR CPG. (On the host filesystem there are mostly symlinks and small files that do not require much disk space)
-1. Tested/confirmed working on CentOS 7 (Frontend) and Oracle Linux 7, Oracle Linux 8, CentOS 7, CentOS 8, Fedora 29+ (Nodes).
+1. Tested/confirmed working on CentOS 7 and Oracle Linux 7 (Frontend), and Oracle Linux 7, Oracle Linux 8, CentOS 7, CentOS 8, Fedora 29+ (Nodes).
 
 ## ToDo
 
 1. QOS Priority per VM
-1. Configuration of API endpoint and auth in datastore template
+1. Configuration of API auth in datastore template
 
 ## Installation
 
