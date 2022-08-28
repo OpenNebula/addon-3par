@@ -79,9 +79,13 @@ while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onevm show -x $VMID | $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/TYPE \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
 IMAGE_ID="${XPATH_ELEMENTS[j++]}"
+CLONE="${XPATH_ELEMENTS[j++]}"
+TYPE="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 #-------------------------------------------------------------------------------
@@ -137,6 +141,12 @@ QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
 #-------------------------------------------------------------------------------
 # Start actions
 #-------------------------------------------------------------------------------
+# Disk is CDROM
+if [ "$CLONE" = "NO" ] && [ "$TYPE" == "CDROM" ]; then
+  # Disable remote copy
+  REMOTE_COPY="NO"
+fi
+
 if [ "$REMOTE_COPY" == "YES" ]; then
     log "Create remote copy group"
     RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToRCGroup -a $API_ENDPOINT -i $IP \
