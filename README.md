@@ -58,7 +58,7 @@ pip install python-3parclient
 ```
 nano /etc/sudoers.d/opennebula
 ...
-Cmnd_Alias ONE_3PAR = /sbin/multipath, /usr/sbin/multipathd, /sbin/dmsetup, /usr/sbin/blockdev, /usr/bin/tee /sys/block/*/device/delete, /usr/bin/rescan-scsi-bus.sh
+Cmnd_Alias ONE_3PAR = /sbin/multipath, /usr/sbin/multipathd, /sbin/dmsetup, /usr/sbin/blockdev, /usr/bin/tee /sys/block/*/device/delete, /usr/bin/rescan-scsi-bus.sh, /sbin/mkswap, /usr/sbin/mkfs
 ...
 
 nano /etc/sudoers.d/opennebula-node-kmv

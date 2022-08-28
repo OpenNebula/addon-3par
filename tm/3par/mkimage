@@ -71,8 +71,11 @@ unset i j XPATH_ELEMENTS
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onevm show -x $VMID| $XPATH \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/FS \
                     /VM/NAME)
 
+
+FS="${XPATH_ELEMENTS[j++]}"
 VM_NAME="${XPATH_ELEMENTS[j++]//[^A-Za-z0-9\[\]() _~+-]/}"
 
 #-------------------------------------------------------------------------------
@@ -167,6 +170,11 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+# Ensure filesystem for raw disks
+if [ "$FSTYPE" == "raw" ] && [ -n "$FS" ]; then
+  FSTYPE=$FS
+fi
+
 DISCOVER_CMD=$(cat <<EOF
     set -e
     mkdir -p "$DST_DIR"
@@ -175,6 +183,8 @@ DISCOVER_CMD=$(cat <<EOF
 
     if [ "$FSTYPE" == "swap" ]; then
         sudo /sbin/mkswap -L swap "\$DEV"
+    elif [ "$FSTYPE" == "xfs" ] || [ "$FSTYPE" == "ext4" ] || [ "$FSTYPE" == "ext3" ] || [ "$FSTYPE" == "ext2" ]; then
+        sudo /usr/sbin/mkfs -t "$FSTYPE" "\$DEV"
     fi
 EOF
 )
