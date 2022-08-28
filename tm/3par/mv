@@ -123,7 +123,6 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DISK_TYPE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID \
-                    /VM/HISTORY_RECORDS/HISTORY[last\(\)-1]/DS_ID \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
 NAME_WWN="${XPATH_ELEMENTS[j++]}"
@@ -132,8 +131,9 @@ CLONE="${XPATH_ELEMENTS[j++]}"
 PERSISTENT="${XPATH_ELEMENTS[j++]}"
 DISK_TYPE="${XPATH_ELEMENTS[j++]}"
 IMG_DSID="${XPATH_ELEMENTS[j++]}"
-PREV_SYS_DSID="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
+
+PREV_SYS_DSID=$(onevm show -x $VMID | xmllint --xpath 'string(/VM/HISTORY_RECORDS/HISTORY[last()-1]/DS_ID)' -)
 
 #-------------------------------------------------------------------------------
 # Get system ds information
