@@ -880,8 +880,9 @@ def addVolumeToRCGroup(cl, args):
         except exceptions.HTTPForbidden:
             # there can be physical copy in progress, so we need wait and retry
             time.sleep(5)
-        except exceptions.HTTPConflict as e:
-            print str(e)
+        except exceptions.HTTPConflict:
+            # volume is already in RC Group
+            done = True
 
     scl.logout()
 
