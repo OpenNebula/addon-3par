@@ -74,12 +74,6 @@ if [ "$SRC" == "$DST" ]; then
     exit 0
 fi
 
-# just moving from one datastore to another
-DS_MIGRATE_ONLY=0
-if [ "$SRC_HOST" == "$DST_HOST" ]; then
-  DS_MIGRATE_ONLY=1
-fi
-
 LCM_STATE=`lcm_state`
 
 if [ `is_disk $DST_PATH` -eq 0 ]; then
@@ -93,26 +87,20 @@ if [ `is_disk $DST_PATH` -eq 0 ]; then
     ssh_make_path "$DST_HOST" "$DST_DIR"
 
     log "Moving $SRC to $DST"
-
-    # just moving from one datastore to another
-    if [ "$DS_MIGRATE_ONLY" == "1" ]; then
-      ssh_exec_and_log "$SRC_HOST" "mv -f '$SRC_PATH' '$DST_PATH'" \
+    
+    ssh_exec_and_log "$DST_HOST" "rm -rf '$DST_PATH'" \
         "Error removing target path to prevent overwrite errors"
-    else
-      ssh_exec_and_log "$DST_HOST" "rm -rf '$DST_PATH'" \
-          "Error removing target path to prevent overwrite errors"
-
-      TAR_SSH=$(cat <<EOF
-      set -e -o pipefail
-
-      $TAR -C $SRC_DS_DIR --sparse -cf - $SRC_VM_DIR | $SSH $DST_HOST '$TAR -C $DST_DIR --sparse -xf -'
-      rm -rf $SRC_PATH
+    
+    TAR_SSH=$(cat <<EOF
+    set -e -o pipefail
+    
+    $TAR -C $SRC_DS_DIR --sparse -cf - $SRC_VM_DIR | $SSH $DST_HOST '$TAR -C $DST_DIR --sparse -xf -'
+    rm -rf $SRC_PATH
 EOF
 )
     
-      ssh_exec_and_log "$SRC_HOST" "$TAR_SSH" "Error copying disk directory to target host"
-    fi
-
+    ssh_exec_and_log "$SRC_HOST" "$TAR_SSH" "Error copying disk directory to target host"
+    
     exit 0
 fi
 
