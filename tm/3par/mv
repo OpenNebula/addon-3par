@@ -74,6 +74,12 @@ if [ "$SRC" == "$DST" ]; then
     exit 0
 fi
 
+# just moving from one datastore to another
+DS_MIGRATE_ONLY=0
+if [ "$SRC_HOST" == "$DST_HOST" ]; then
+  DS_MIGRATE_ONLY=1
+fi
+
 LCM_STATE=`lcm_state`
 
 if [ `is_disk $DST_PATH` -eq 0 ]; then
@@ -87,20 +93,26 @@ if [ `is_disk $DST_PATH` -eq 0 ]; then
     ssh_make_path "$DST_HOST" "$DST_DIR"
 
     log "Moving $SRC to $DST"
-    
-    ssh_exec_and_log "$DST_HOST" "rm -rf '$DST_PATH'" \
+
+    # just moving from one datastore to another
+    if [ "$DS_MIGRATE_ONLY" == "1" ]; then
+      ssh_exec_and_log "$SRC_HOST" "mv -f '$SRC_PATH' '$DST_PATH'" \
         "Error removing target path to prevent overwrite errors"
-    
-    TAR_SSH=$(cat <<EOF
-    set -e -o pipefail
-    
-    $TAR -C $SRC_DS_DIR --sparse -cf - $SRC_VM_DIR | $SSH $DST_HOST '$TAR -C $DST_DIR --sparse -xf -'
-    rm -rf $SRC_PATH
+    else
+      ssh_exec_and_log "$DST_HOST" "rm -rf '$DST_PATH'" \
+          "Error removing target path to prevent overwrite errors"
+
+      TAR_SSH=$(cat <<EOF
+      set -e -o pipefail
+
+      $TAR -C $SRC_DS_DIR --sparse -cf - $SRC_VM_DIR | $SSH $DST_HOST '$TAR -C $DST_DIR --sparse -xf -'
+      rm -rf $SRC_PATH
 EOF
 )
     
-    ssh_exec_and_log "$SRC_HOST" "$TAR_SSH" "Error copying disk directory to target host"
-    
+      ssh_exec_and_log "$SRC_HOST" "$TAR_SSH" "Error copying disk directory to target host"
+    fi
+
     exit 0
 fi
 
@@ -123,6 +135,7 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DISK_TYPE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID \
+                    /VM/HISTORY_RECORDS/HISTORY[last\(\)-1]/DS_ID \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
 NAME_WWN="${XPATH_ELEMENTS[j++]}"
@@ -131,6 +144,7 @@ CLONE="${XPATH_ELEMENTS[j++]}"
 PERSISTENT="${XPATH_ELEMENTS[j++]}"
 DISK_TYPE="${XPATH_ELEMENTS[j++]}"
 IMG_DSID="${XPATH_ELEMENTS[j++]}"
+PREV_SYS_DSID="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 #-------------------------------------------------------------------------------
@@ -169,6 +183,18 @@ QOS_MAX_BW="${XPATH_ELEMENTS[j++]:-$QOS_MAX_BW}"
 QOS_MIN_BW="${XPATH_ELEMENTS[j++]:-$QOS_MIN_BW}"
 QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
 
+#-------------------------------------------------------------------------------
+# Get previous system ds information
+#-------------------------------------------------------------------------------
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $PREV_SYS_DSID | $XPATH \
+                    /DATASTORE/TEMPLATE/REMOTE_COPY)
+
+PREV_REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+
 # Disk os clone or volatile, so copy was created
 if [ "$CLONE" = "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
   # get VM disk WWN
@@ -182,6 +208,7 @@ if [ "$CLONE" = "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
 
   # Disable remote copy for non-persistent disk
   REMOTE_COPY="NO"
+  PREV_REMOTE_COPY="NO"
 fi
 
 NAME=$(get_vv_name "$NAME_WWN")
@@ -246,9 +273,9 @@ EOF
       exit 1
     fi
 
-    if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+    if [ "$PREV_REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
         python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
-                      -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $SRC_HOST -rc $REMOTE_COPY
+                      -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $SRC_HOST -rc $PREV_REMOTE_COPY
 
         if [ $? -ne 0 ]; then
           error_message "Error unexporting remote VV"
@@ -257,9 +284,10 @@ EOF
     fi
 
     # VM lcm state is EPILOG_UNDEPLOY
-    if [ $LCM_STATE -eq 30 ]; then
+    # or migrating between RC and non-RC datastore
+    if [ $LCM_STATE -eq 30 ] || [ "$PREV_REMOTE_COPY" != "$REMOTE_COPY" ]; then
         # perform cleanup
-        if [ "$REMOTE_COPY" == "YES" ]; then
+        if [ "$PREV_REMOTE_COPY" == "YES" ]; then
             log "Remove disk from Remote Copy group"
             RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromRCGroup -a $API_ENDPOINT -i $IP \
                 -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
@@ -307,15 +335,6 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
               error_message "$QOS"
               exit 1
             fi
-        fi
-
-        log "Remove disk from non-RC VM VV Set"
-        VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP \
-                -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
-
-        if [ $? -ne 0 ]; then
-          error_message "$VVSET"
-          exit 1
         fi
 
         if [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
