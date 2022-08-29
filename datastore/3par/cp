@@ -67,13 +67,19 @@ done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/BASE_PATH \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CONVERT \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/DRIVER \
                     /DS_DRIVER_ACTION_DATA/IMAGE/TYPE \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/ID \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/API_ENDPOINT \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/IP \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_IP \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/REMOTE_COPY \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_CPG \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/THIN \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/DEDUP \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/COMPRESSION \
                     /DS_DRIVER_ACTION_DATA/IMAGE/SIZE \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/PERSISTENT \
                     /DS_DRIVER_ACTION_DATA/IMAGE/NAME)
 
 BASE_PATH="${XPATH_ELEMENTS[j++]}"
@@ -90,13 +96,19 @@ LIMIT_TRANSFER_BW="${XPATH_ELEMENTS[j++]}"
 CONVERT="${XPATH_ELEMENTS[j++]:-yes}"
 DRIVER="${XPATH_ELEMENTS[j++]}"
 IMAGE_TYPE="${XPATH_ELEMENTS[j++]}"
+DSID="${XPATH_ELEMENTS[j++]}"
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
 CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+SEC_CPG="${XPATH_ELEMENTS[j++]:-$SEC_CPG}"
 THIN="${XPATH_ELEMENTS[j++]:-$THIN}"
 DEDUP="${XPATH_ELEMENTS[j++]:-$DEDUP}"
 COMPRESSION="${XPATH_ELEMENTS[j++]:-$COMPRESSION}"
 SIZE="${XPATH_ELEMENTS[j++]:-0}"
+PERSISTENT="${XPATH_ELEMENTS[j++]}"
 IMAGE_NAME="${XPATH_ELEMENTS[j++]//[^A-Za-z0-9\[\]() _~+-]/}"
 
 DST_HOST=`get_destination_host $ID`
@@ -150,6 +162,20 @@ fi
 NAME=$(get_vv_name "$NAME_WWN")
 WWN=$(get_vv_wwn "$NAME_WWN")
 
+# ----------- Add image to RC Group -------
+# only non-persistent images
+if [ "$PERSISTENT" == "0" ] && [ "$REMOTE_COPY" == "YES" ]; then
+    log "Add image to remote copy group"
+    RCG=$(python ${DRIVER_PATH}/3par.py addVolumeToRCGroup -a $API_ENDPOINT -i $IP \
+      -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME \
+      -c $CPG -sc $SEC_CPG -rcm $REMOTE_COPY_MODE -rcgn "$NAMING_TYPE.one.ds.$DSID" -rcha "NO")
+
+    if [ $? -ne 0 ]; then
+      error_message "$RCG"
+      exit 1
+    fi
+fi
+
 # Map image
 log "Mapping $WWN to $DST_HOST"
 
@@ -170,15 +196,7 @@ EOF
 ssh_exec_and_log "$DST_HOST" "$DISCOVER_CMD" \
     "Error registering $WWN to $DST_HOST"
 
-GET_DEV_CMD=$(cat <<EOF
-    set -e
-    DEV="/dev/mapper/3$WWN"
-    
-    echo "\$DEV"
-EOF
-)
-
-DEV=$(ssh_monitor_and_log "$DST_HOST" "$GET_DEV_CMD")
+DEV="/dev/mapper/3$WWN"
 
 # copy image
 REGISTER_CMD=$(cat <<EOF

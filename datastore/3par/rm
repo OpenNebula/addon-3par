@@ -34,6 +34,7 @@ fi
 
 DRIVER_PATH=$(dirname $0)
 source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
+. ${DRIVER_PATH}/scripts_3par.sh
 
 # -------- Get rm and datastore arguments from OpenNebula core ------------
 
@@ -46,17 +47,50 @@ unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <($XPATH     /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/RC \
+done < <($XPATH     /DS_DRIVER_ACTION_DATA/IMAGE/PERSISTENT \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/SOURCE \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/RC \
                     /DS_DRIVER_ACTION_DATA/IMAGE/TEMPLATE/RC_SYSTEM_DS_ID \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/ID \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/API_ENDPOINT \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/IP)
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/IP \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_IP \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/REMOTE_COPY)
 
-REMOTE_COPY="${XPATH_ELEMENTS[j++]}"
+PERSISTENT="${XPATH_ELEMENTS[j++]}"
+SOURCE="${XPATH_ELEMENTS[j++]}"
+SYS_DS_REMOTE_COPY="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
+DSID="${XPATH_ELEMENTS[j++]}"
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 
-if [ "$REMOTE_COPY" == "YES" ]; then
+# only non-persistent images
+if [ "$PERSISTENT" == "0" ] && [ "$REMOTE_COPY" == "YES" ]; then
+    NAME=$(get_vv_name "$SOURCE")
+
+    log "Remove disk from Remote Copy group"
+    RCG=$(python ${DRIVER_PATH}/3par.py deleteVolumeFromRCGroup -a $API_ENDPOINT -i $IP \
+        -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -rcgn "$NAMING_TYPE.one.ds.$DSID")
+
+    if [ $? -ne 0 ]; then
+      error_message "$RCG"
+      exit 1
+    fi
+
+    # Delete image from both 3par systems
+  python ${DRIVER_PATH}/3par.py deleteVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE \
+                                      -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $ID -rc $REMOTE_COPY
+
+  exit $?
+fi
+
+# persistent disks deployed in RC enabled system datastore
+if [ "$SYS_DS_REMOTE_COPY" == "YES" ]; then
   #-------------------------------------------------------------------------------
   # Get system ds information
   #-------------------------------------------------------------------------------
@@ -74,9 +108,11 @@ if [ "$REMOTE_COPY" == "YES" ]; then
 
   # Delete image from both 3par systems
   python ${DRIVER_PATH}/3par.py deleteVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE \
-                                      -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $ID -rc $REMOTE_COPY
-else
-  # Delete image from single 3par system
-  python ${DRIVER_PATH}/3par.py deleteVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                          -nt $NAMING_TYPE -id $ID
+                                      -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $ID -rc $SYS_DS_REMOTE_COPY
+
+  exit $?
 fi
+
+# Delete image from single 3par system
+python ${DRIVER_PATH}/3par.py deleteVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
+                                        -nt $NAMING_TYPE -id $ID

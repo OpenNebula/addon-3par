@@ -270,9 +270,11 @@ addVolumeToRCGroupParser = subparsers.add_parser('addVolumeToRCGroup', parents=[
                                               help='Add volume to Remote Copy group. If RC group does not exists, it creates new one')
 addVolumeToRCGroupParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
                                    default='dev')
-addVolumeToRCGroupParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
+addVolumeToRCGroupParser.add_argument('-vi', '--vmId', help='Id of VM')
 addVolumeToRCGroupParser.add_argument('-n', '--name', help='Name of VV', required=True)
+addVolumeToRCGroupParser.add_argument('-rcgn', '--remoteCopyGroupName', help='Name of RC Group', default=None)
 addVolumeToRCGroupParser.add_argument('-rcm', '--remoteCopyMode', help='Remote Copy mode', choices=['SYNC', 'PERIODIC', 'ASYNC'], required=True)
+addVolumeToRCGroupParser.add_argument('-rcha', '--remoteCopyHA', help='Enable High-Availability mode', type=boolarg, default=True)
 addVolumeToRCGroupParser.add_argument('-c', '--cpg', help='Local CPG Name', required=True)
 addVolumeToRCGroupParser.add_argument('-sc', '--secCpg', help='Remote CPG Name', required=True)
 
@@ -281,8 +283,9 @@ deleteVolumeFromRCGroupParser = subparsers.add_parser('deleteVolumeFromRCGroup',
                                         help='Delete volume from Remote Copy group. If it is last member, it stop RC group')
 deleteVolumeFromRCGroupParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
                                    default='dev')
-deleteVolumeFromRCGroupParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
+deleteVolumeFromRCGroupParser.add_argument('-vi', '--vmId', help='Id of VM')
 deleteVolumeFromRCGroupParser.add_argument('-n', '--name', help='Name of VV', required=True)
+deleteVolumeFromRCGroupParser.add_argument('-rcgn', '--remoteCopyGroupName', help='Name of RC Group', default=None)
 
 # ------------
 # Define tasks
@@ -822,7 +825,11 @@ def createQosPolicy(cl, args):
 
 def addVolumeToRCGroup(cl, args):
     shouldStartRcg = True
-    rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+
+    if args.remoteCopyGroupName is None:
+        rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    else:
+        rcgName = args.remoteCopyGroupName
 
     scl, targetName = getRemoteCopyTargetName(args)
 
@@ -888,7 +895,10 @@ def addVolumeToRCGroup(cl, args):
 
 
 def deleteVolumeFromRCGroup(cl, args):
-    rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    if args.remoteCopyGroupName is None:
+        rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    else:
+        rcgName = args.remoteCopyGroupName
 
     # remove volume from rc group
     try:
@@ -926,8 +936,9 @@ def getRCGroupParams(targetName, args):
 
     if args.remoteCopyMode == 'SYNC':
         target['mode'] = 1
-        #policies['autoFailover'] = True
-        policies['pathManagement'] = True
+        if args.remoteCopyHA:
+            #policies['autoFailover'] = True
+            policies['pathManagement'] = True
     elif args.remoteCopyMode == 'PERIODIC':
         target['mode'] = 3
     elif args.remoteCopyMode == 'ASYNC':

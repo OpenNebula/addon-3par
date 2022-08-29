@@ -34,6 +34,7 @@ fi
 
 DRIVER_PATH=$(dirname $0)
 source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
+. ${DRIVER_PATH}/scripts_3par.sh
 
 # -------- Get mkfs and datastore arguments from OpenNebula core ------------
 
@@ -42,31 +43,64 @@ ID=$2
 
 XPATH="${DRIVER_PATH}/../xpath.rb -b $DRV_ACTION"
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/API_ENDPOINT \
+done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/ID \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/API_ENDPOINT \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/IP \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_IP \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/REMOTE_COPY \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_CPG \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/THIN \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/DEDUP \
                     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/COMPRESSION \
                     /DS_DRIVER_ACTION_DATA/IMAGE/NAME \
+                    /DS_DRIVER_ACTION_DATA/IMAGE/PERSISTENT \
                     /DS_DRIVER_ACTION_DATA/IMAGE/SIZE)
 
-unset i
-
-API_ENDPOINT="${XPATH_ELEMENTS[i++]:-$API_ENDPOINT}"
-IP="${XPATH_ELEMENTS[i++]:-$IP}"
-CPG="${XPATH_ELEMENTS[i++]:-$CPG}"
-THIN="${XPATH_ELEMENTS[i++]:-$THIN}"
-DEDUP="${XPATH_ELEMENTS[i++]:-$DEDUP}"
-COMPRESSION="${XPATH_ELEMENTS[i++]:-$COMPRESSION}"
-NAME="${XPATH_ELEMENTS[i++]}"
-SIZE="${XPATH_ELEMENTS[i++]:-0}"
+DSID="${XPATH_ELEMENTS[j++]}"
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+SEC_CPG="${XPATH_ELEMENTS[j++]:-$SEC_CPG}"
+THIN="${XPATH_ELEMENTS[j++]:-$THIN}"
+DEDUP="${XPATH_ELEMENTS[j++]:-$DEDUP}"
+COMPRESSION="${XPATH_ELEMENTS[j++]:-$COMPRESSION}"
+NAME="${XPATH_ELEMENTS[j++]}"
+PERSISTENT="${XPATH_ELEMENTS[j++]}"
+SIZE="${XPATH_ELEMENTS[j++]:-0}"
 
 # ------------ Create image -------------
 
-python ${DRIVER_PATH}/3par.py createVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
-                                    -tpvv $THIN -tdvv $DEDUP -compr $COMPRESSION -id $ID -c $CPG -sz $SIZE -co "$NAME"
+NAME_WWN=$(python ${DRIVER_PATH}/3par.py createVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
+                                    -tpvv $THIN -tdvv $DEDUP -compr $COMPRESSION -id $ID -c $CPG -sz $SIZE -co "$NAME")
+
+if [ $? -ne 0 ]; then
+  error_message "$NAME_WWN"
+  exit 1
+fi
+
+# ----------- Add image to RC Group -------
+# only non-persistent images
+if [ "$PERSISTENT" == "0" ] && [ "$REMOTE_COPY" == "YES" ]; then
+    VV_NAME=$(get_vv_name "$NAME_WWN")
+
+    log "Add image to remote copy group"
+    RCG=$(python ${DRIVER_PATH}/3par.py addVolumeToRCGroup -a $API_ENDPOINT -i $IP \
+      -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $VV_NAME \
+      -c $CPG -sc $SEC_CPG -rcm $REMOTE_COPY_MODE -rcgn "$NAMING_TYPE.one.ds.$DSID" -rcha "NO")
+
+    if [ $? -ne 0 ]; then
+      error_message "$RCG"
+      exit 1
+    fi
+fi
+
+echo $NAME_WWN
