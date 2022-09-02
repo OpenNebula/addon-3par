@@ -360,7 +360,7 @@ def deleteVV(cl, args):
     deleteVVWithName(cl, vvName)
 
     if args.remoteCopy:
-        vvName = '{name}.r'.format(name=vvName)
+        vvName = '{name}'.format(name=vvName)
         cl = getRemoteSystemClient(args)
         deleteVVWithName(cl, vvName)
 
@@ -420,7 +420,7 @@ def getVVSize(cl, args):
 
 def exportVV(cl, args):
     if args.remoteCopy:
-        name = '{name}.r'.format(name=args.name)
+        name = '{name}'.format(name=args.name)
         cl = getRemoteSystemClient(args)
     else:
         name = args.name
@@ -449,7 +449,7 @@ def exportVV(cl, args):
 
 def unexportVV(cl, args):
     if args.remoteCopy:
-        name = '{name}.r'.format(name=args.name)
+        name = '{name}'.format(name=args.name)
         cl = getRemoteSystemClient(args)
     else:
         name = args.name
@@ -850,7 +850,8 @@ def addVolumeToRCGroup(cl, args):
         cl._run(['setrcopygroup', 'pol', 'auto_synchronize', rcgName])
 
     # add volume to rc group
-    secVVName = '{name}.r'.format(name=args.name)
+    # we need to have same VV name on second system too
+    secVVName = '{name}'.format(name=args.name)
     volumeAutoCreation = True
     skipInitialSync = False
 
