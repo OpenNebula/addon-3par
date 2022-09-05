@@ -189,7 +189,6 @@ fi
 DISCOVER_CMD=$(cat <<EOF
     set -e
     $(discover_lun "$LUN" "$WWN")
-    echo "\$DEV"
 EOF
 )
 
