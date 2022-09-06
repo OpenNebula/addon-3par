@@ -871,6 +871,7 @@ def addVolumeToRCGroup(cl, args):
     }
 
     done = False
+    i = 0
     while not done:
         try:
             print 'Add volume to Remote Copy group'
@@ -885,11 +886,20 @@ def addVolumeToRCGroup(cl, args):
             if shouldStartRcg:
                 print 'Start Remote Copy group'
                 cl.startRemoteCopy(rcgName)
-        except exceptions.HTTPForbidden:
+        except exceptions.HTTPForbidden as ex:
             # there can be physical copy in progress, so we need wait and retry
+            # wait max 15min
+            if i > 180:
+                # other issue, exiting
+                cl.logout()
+                scl.logout()
+                print ex
+                exit(1)
+            i += 1
             time.sleep(5)
-        except exceptions.HTTPConflict:
+        except exceptions.HTTPConflict as ex:
             # volume is already in RC Group
+            print ex
             done = True
 
     scl.logout()

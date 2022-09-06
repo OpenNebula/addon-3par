@@ -305,6 +305,8 @@ function add_vv_to_rcg {
       error_message "$RCG"
       exit 1
     fi
+
+    log "$RCG"
 }
 
 function remove_vv_from_vvset {
