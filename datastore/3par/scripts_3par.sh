@@ -24,6 +24,14 @@ MULTIPATHD=multipathd
 TEE=tee
 BASENAME=basename
 
+if [ -z "${ONE_LOCATION}" ]; then
+    PY3PAR="python /var/lib/one/remotes/datastore/3par/3par.py"
+    XPATH="/var/lib/one/remotes/datastore/xpath.rb --stdin"
+else
+    PY3PAR="python $ONE_LOCATION/var/remotes/datastore/3par/3par.py"
+    XPATH="$ONE_LOCATION/var/remotes/datastore/xpath.rb --stdin"
+fi
+
 function multipath_flush {
     local MAP_NAME
     MAP_NAME="$1"
@@ -64,7 +72,7 @@ function get_vv_wwn {
   echo "$NAME_WWN" | $AWK -F: '{print $2}'
 }
 
-function imageUpdate {
+function image_update {
   local ID
   local DATA
   ID="$1"
@@ -75,6 +83,17 @@ function imageUpdate {
   echo $DATA > $_TEMPLATE
 
   oneimage update $ID -a $_TEMPLATE
+}
+
+function get_image_running_vms_count {
+    local IMAGE_ID="$1"
+    local i XPATH_ELEMENTS
+
+    while IFS= read -r -d '' element; do
+        XPATH_ELEMENTS[i++]="$element"
+    done < <(oneimage show -x "$IMAGE_ID" | $XPATH /IMAGE/RUNNING_VMS)
+
+    echo "${XPATH_ELEMENTS[0]}"
 }
 
 function discover_lun {
@@ -145,4 +164,206 @@ function remove_lun {
         done
       fi
 EOF
+}
+
+function unmap_lun {
+  local HOST
+  local WWN
+  HOST="$1"
+  WWN="$2"
+
+  log "Unmapping $WWN from $HOST"
+
+  FLUSH_CMD=$(cat <<EOF
+          set -e
+          $(remove_lun "$WWN")
+EOF
+)
+
+  ssh_exec_and_log "$HOST" "$FLUSH_CMD" "Error flushing out mapping"
+}
+
+function rescan_lun {
+    local HOST="$1"
+    local LUN="$2"
+
+    RESCAN_CMD=$(cat <<EOF
+                set -e
+                $(rescan_scsi_bus "$LUN")
+EOF
+)
+
+    ssh_exec_and_log "$HOST" "$RESCAN_CMD" \
+      "Error registering remote $LUN to $HOST"
+}
+
+function map_lun {
+    local HOST="$1"
+    local LUN="$2"
+    local WWN="$3"
+    local DST_DIR="$4"
+    local DST_PATH="$5"
+
+    DISCOVER_CMD=$(cat <<EOF
+        set -e
+        mkdir -p "$DST_DIR"
+        $(discover_lun "$LUN" "$WWN")
+        ln -sf "\$DEV" "$DST_PATH"
+EOF
+)
+
+    ssh_exec_and_log "$HOST" "$DISCOVER_CMD" \
+        "Error registering $WWN to $HOST"
+}
+
+function unexport_vv {
+    local NAME="$1"
+    local HOST="$2"
+    local RC="${3:-NO}"
+
+    log "Unexporting $NAME from $HOST"
+
+    if [[ "$RC" == "YES" ]]; then
+        $PY3PAR unexportVV -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -n "$NAME" -hs "$HOST" \
+                          -sapi "$SEC_API_ENDPOINT" -sip "$SEC_IP" -rc "$RC"
+    else
+        $PY3PAR unexportVV -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -n "$NAME" -hs "$HOST"
+    fi
+
+    if [ $? -ne 0 ]; then
+      error_message "Error unexporting VV"
+      exit 1
+    fi
+}
+
+function export_vv {
+    local NAME="$1"
+    local HOST="$2"
+    local RC="${3:-NO}"
+    local LUN
+
+    log "Mapping remote $NAME to $HOST"
+
+    if [[ "$RC" == "YES" ]]; then
+        LUN=$($PY3PAR exportVV -a "$API_ENDPOINT" -i "$IP" -sapi "$SEC_API_ENDPOINT" -sip "$SEC_IP" -s "$SECURE" \
+                               -u "$USERNAME" -p "$PASSWORD" -n "$NAME" -hs "$HOST" -rc "YES")
+    else
+        LUN=$($PY3PAR exportVV -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -n "$NAME" \
+                               -hs "$HOST")
+    fi
+
+    if [ $? -ne 0 ]; then
+      error_message "$LUN"
+      exit 1
+    fi
+
+    echo "$LUN"
+}
+
+function host_exists {
+    local HOST="$1"
+    local HOST_3PAR
+
+    HOST_3PAR=$($PY3PAR hostExists -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -hs "$HOST")
+
+    if [ $? -ne 0 ]; then
+      error_message "$HOST_3PAR"
+      exit 1
+    fi
+
+    echo "$HOST_3PAR"
+}
+
+function remove_vv_from_rcg {
+    local NAME="$1"
+    local VMID="$2"
+    local RCG
+
+    log "Remove disk from Remote Copy group"
+
+    RCG=$($PY3PAR deleteVolumeFromRCGroup -a "$API_ENDPOINT" -i "$IP" -sapi "$SEC_API_ENDPOINT" -sip "$SEC_IP" \
+                                -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -nt "$NAMING_TYPE" -n "$NAME" -vi "$VMID")
+
+    if [ $? -ne 0 ]; then
+      error_message "$RCG"
+      exit 1
+    fi
+}
+
+function add_vv_to_rcg {
+    local NAME="$1"
+    local VMID="$2"
+    local RCG
+
+    log "Create remote copy group"
+
+    RCG=$($PY3PAR addVolumeToRCGroup -a "$API_ENDPOINT" -i "$IP" -sapi "$SEC_API_ENDPOINT" -sip "$SEC_IP" -s "$SECURE" \
+                -u "$USERNAME" -p "$PASSWORD" -nt "$NAMING_TYPE" -c "$CPG" -sc "$SEC_CPG" -rcm "$REMOTE_COPY_MODE" \
+                -n "$NAME" -vi "$VMID")
+
+    if [ $? -ne 0 ]; then
+      error_message "$RCG"
+      exit 1
+    fi
+}
+
+function remove_vv_from_vvset {
+    local NAME="$1"
+    local VMID="$2"
+    local VVSET
+
+    log "Remove disk from VM VV Set"
+    VVSET=$($PY3PAR deleteVolumeFromVVSet -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" \
+                                          -nt "$NAMING_TYPE" -n "$NAME" -vi "$VMID")
+
+    if [ $? -ne 0 ]; then
+      error_message "$VVSET"
+      exit 1
+    fi
+}
+
+function add_vv_to_vvset {
+    local NAME="$1"
+    local VMID="$2"
+    local VVSET
+
+    log "Add disk to VM VV Set"
+    VVSET=$($PY3PAR addVolumeToVVSet -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" \
+                                     -nt "$NAMING_TYPE" -n "$NAME" -vi "$VMID")
+
+    if [ $? -ne 0 ]; then
+      error_message "$VVSET"
+      exit 1
+    fi
+}
+
+function get_vm_vv_clone_source {
+    local VMID="$1"
+    local DISK_ID="$2"
+    local NAME_WWN
+
+    NAME_WWN=$($PY3PAR getVmClone -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" \
+                                  -nt "$NAMING_TYPE" -vi "$VMID" -id "$DISK_ID")
+
+    if [ $? -ne 0 ]; then
+      error_message "$NAME_WWN"
+      exit 1
+    fi
+
+    echo "$NAME_WWN"
+}
+
+function create_qos_policy {
+    local VMID="$1"
+    local QOS
+
+    log "Create QoS Policy"
+    QOS=$($PY3PAR createQosPolicy -a "$API_ENDPOINT" -i "$IP" -sapi "$SEC_API_ENDPOINT" -sip "$SEC_IP" -s "$SECURE" \
+        -u "$USERNAME" -p "$PASSWORD" -nt "$NAMING_TYPE" -qp "$QOS_PRIORITY" -qxi "$QOS_MAX_IOPS" -qmi "$QOS_MIN_IOPS" \
+        -qxb "$QOS_MAX_BW" -qmb "$QOS_MIN_BW" -ql "$QOS_LATENCY" -rc "$REMOTE_COPY" -vi "$VMID")
+
+    if [ $? -ne 0 ]; then
+      error_message "$QOS"
+      exit 1
+    fi
 }

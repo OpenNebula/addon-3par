@@ -76,6 +76,7 @@ fi
 
 LCM_STATE=`lcm_state`
 
+# moving system datastore deployment files, not a disk
 if [ `is_disk $DST_PATH` -eq 0 ]; then
     # VM is in unknown state, SRC_HOST probably in failed state
     # PROLOG_MIGRATE_UNKNOWN PROLOG_MIGRATE_UNKNOWN_FAILURE
@@ -109,8 +110,6 @@ fi
 #-------------------------------------------------------------------------------
 
 DISK_ID=$(echo "$DST_PATH" | $AWK -F. '{print $NF}')
-
-XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
 unset i j XPATH_ELEMENTS
 
@@ -183,92 +182,50 @@ done < <(onedatastore show -x $PREV_SYS_DSID | $XPATH \
 
 PREV_REMOTE_COPY="${XPATH_ELEMENTS[j++]:-NO}"
 
-# Disk os clone or volatile, so copy was created
+# Overwrite NAME_WWN if disk is clone or volatile
 if [ "$CLONE" = "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
   # get VM disk WWN
-  NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
-
-  if [ $? -ne 0 ]; then
-    error_message "$NAME_WWN"
-    exit 1
-  fi
+  NAME_WWN=$(get_vm_vv_clone_source "$VMID" "$DISK_ID")
 
   # Disable remote copy for non-persistent disk
   REMOTE_COPY="NO"
   PREV_REMOTE_COPY="NO"
 fi
 
+# extract VV Name and Wwn
 NAME=$(get_vv_name "$NAME_WWN")
 WWN=$(get_vv_wwn "$NAME_WWN")
+
+# is src/dest host registered on 3par? so is it compute node and not frontend?
+IS_SRC_HOST_3PAR=$(host_exists "$SRC_HOST")
+IS_DST_HOST_3PAR=$(host_exists "$DST_HOST")
 
 #-------------------------------------------------------------------------------
 # Start actions
 #-------------------------------------------------------------------------------
 
-SRC_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                        -p $PASSWORD -hs $SRC_HOST)
-
-if [ $? -ne 0 ]; then
-  error_message "$SRC_HOST_3PAR"
-  exit 1
-fi
-
-DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                        -p $PASSWORD -hs $DST_HOST)
-
-if [ $? -ne 0 ]; then
-  error_message "$DST_HOST_3PAR"
-  exit 1
-fi
-
 # Not persistent and not clone, so this disk can be used by more VMs at the same time
+# CDROM
 CAN_UNMAP=1
 if [ "$PERSISTENT" != "YES" ] && [ "$CLONE" == "NO" ]; then
     # check if disk is in use by other VMs
-    unset i XPATH_ELEMENTS
-
-    while IFS= read -r -d '' element; do
-        XPATH_ELEMENTS[i++]="$element"
-    done < <(oneimage show -x $IMAGE_ID | $XPATH /IMAGE/RUNNING_VMS)
-
-    RUNNING_VMS="${XPATH_ELEMENTS[0]}"
+    RUNNING_VMS=$(get_image_running_vms_count "$IMAGE_ID")
 
     # image is used, so can't unmap
     [ "$RUNNING_VMS" != "1" ] && CAN_UNMAP=0
 fi
 
-if [ "$SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
-    log "Unmapping $WWN from $SRC_HOST"
-
-    # src host in failed state, can not flush disk before unexport
+# src host is compute node
+if [ "$IS_SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
+    # flush disk only if src host is not in failed state
     if [ $LCM_STATE -ne 60 ] && [ $LCM_STATE -ne 61 ]; then
-        FLUSH_CMD=$(cat <<EOF
-          set -e
-          $(remove_lun "$WWN")
-EOF
-)
-
-        ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
-            "Error flushing out mapping"
+        unmap_lun "$SRC_HOST" "$WWN"
     fi
 
-    python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                                                -n $NAME -hs $SRC_HOST
-
-    if [ $? -ne 0 ]; then
-      error_message "Error unexporting VV"
-      exit 1
-    fi
+    unexport_vv $NAME $SRC_HOST
 
     if [ "$PREV_REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
-        python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
-                      -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $SRC_HOST -rc $PREV_REMOTE_COPY
-
-        if [ $? -ne 0 ]; then
-          error_message "Error unexporting remote VV"
-          exit 1
-        fi
+        unexport_vv $NAME $SRC_HOST "YES"
     fi
 
     # VM lcm state is EPILOG_UNDEPLOY
@@ -276,106 +233,35 @@ EOF
     if [ $LCM_STATE -eq 30 ] || [ "$PREV_REMOTE_COPY" != "$REMOTE_COPY" ]; then
         # perform cleanup
         if [ "$PREV_REMOTE_COPY" == "YES" ]; then
-            log "Remove disk from Remote Copy group"
-            RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromRCGroup -a $API_ENDPOINT -i $IP \
-                -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
-
-            if [ $? -ne 0 ]; then
-              error_message "$RCG"
-              exit 1
-            fi
+            remove_vv_from_rcg "$NAME" "$VMID"
         else
-            log "Remove disk from VM VV Set"
-            VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP \
-                    -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
-
-            if [ $? -ne 0 ]; then
-              error_message "$VVSET"
-              exit 1
-            fi
+            remove_vv_from_vvset "$NAME" "$VMID"
         fi
     fi
 fi
 
-if [ "$DST_HOST_3PAR" == "1" ]; then
+# dest host is compute node
+if [ "$IS_DST_HOST_3PAR" == "1" ]; then
     if [ "$PREV_REMOTE_COPY" != "$REMOTE_COPY" ]; then
         if [ "$REMOTE_COPY" == "YES" ]; then
-            log "Create remote copy group"
-            RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToRCGroup -a $API_ENDPOINT -i $IP \
-              -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID \
-              -c $CPG -sc $SEC_CPG -rcm $REMOTE_COPY_MODE)
-
-            if [ $? -ne 0 ]; then
-              error_message "$RCG"
-              exit 1
-            fi
+            add_vv_to_rcg "$NAME" "$VMID"
 
             log "Add info about RC to image template"
-            imageUpdate $IMAGE_ID "RC=YES RC_SYSTEM_DS_ID=$SYS_DSID"
+            image_update "$IMAGE_ID" "RC=YES RC_SYSTEM_DS_ID=$SYS_DSID"
         else
-            log "Add disk to VM VV Set"
-            VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToVVSet -a $API_ENDPOINT -i $IP -s $SECURE \
-                          -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
-
-            if [ $? -ne 0 ]; then
-              error_message "$VVSET"
-              exit 1
-            fi
+            add_vv_to_vvset "$NAME" "$VMID"
         fi
 
         if [ "$QOS_ENABLE" == "YES" ]; then
-            log "Create QoS Policy"
-            QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP \
-                  -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE \
-                  -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS -qxb $QOS_MAX_BW \
-                  -qmb $QOS_MIN_BW -ql $QOS_LATENCY -rc $REMOTE_COPY)
-
-            if [ $? -ne 0 ]; then
-              error_message "$QOS"
-              exit 1
-            fi
+            create_qos_policy "$VMID"
         fi
 
         if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
-            log "Mapping remote $WWN to $DST_HOST"
-
-            LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
-                          -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $DST_HOST -rc $REMOTE_COPY)
-
-            if [ $? -ne 0 ]; then
-              error_message "$LUN"
-              exit 1
-            fi
-
-            RESCAN_CMD=$(cat <<EOF
-                set -e
-                $(rescan_scsi_bus "$LUN")
-EOF
-)
-
-            ssh_exec_and_log "$DST_HOST" "$RESCAN_CMD" \
-              "Error registering remote $SRC to $DST_HOST"
+            LUN=$(export_vv "$NAME" "$DST_HOST" "YES")
+            rescan_lun "$DST_HOST" "$LUN"
         fi
     fi
 
-    log "Mapping $NAME_WWN to $DST_HOST"
-
-    LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                                                -n $NAME -hs $DST_HOST)
-
-    if [ $? -ne 0 ]; then
-      error_message "$LUN"
-      exit 1
-    fi
-    
-    DISCOVER_CMD=$(cat <<EOF
-        set -e
-        mkdir -p "$DST_DIR"
-        $(discover_lun "$LUN" "$WWN")
-        ln -sf "\$DEV" "$DST_PATH"
-EOF
-)
-    
-    ssh_exec_and_log "$DST_HOST" "$DISCOVER_CMD" \
-        "Error registering $NAME_WWN to $DST_HOST"
+    LUN=$(export_vv "$NAME" "$DST_HOST")
+    map_lun "$DST_HOST" "$LUN" "$WWN" "$DST_DIR" "$DST_PATH"
 fi
