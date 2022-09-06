@@ -458,13 +458,16 @@ def unexportVV(cl, args):
 
     # check if VLUN exists
     found = False
-    vluns = cl.getHostVLUNs(host)
-    for vlun in vluns:
-        if vlun.get('volumeName') == name:
-            found = True
-            break
+    try:
+        vluns = cl.getHostVLUNs(host)
+        for vlun in vluns:
+            if vlun.get('volumeName') == name:
+                found = True
+                break
+    except exceptions.HTTPNotFound:
+        pass
 
-    if found == False:
+    if not found:
         return
 
     cl.deleteVLUN(name, vlun.get('lun'), host)

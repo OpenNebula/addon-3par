@@ -220,18 +220,20 @@ function unexport_vv {
     local NAME="$1"
     local HOST="$2"
     local RC="${3:-NO}"
-
-    log "Unexporting $NAME from $HOST"
+    local RESULT
 
     if [[ "$RC" == "YES" ]]; then
-        $PY3PAR unexportVV -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -n "$NAME" -hs "$HOST" \
-                          -sapi "$SEC_API_ENDPOINT" -sip "$SEC_IP" -rc "$RC"
+        log "Unexporting remote $NAME from $HOST"
+        RESULT=$($PY3PAR unexportVV -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -n "$NAME" \
+                                    -hs "$HOST" -sapi "$SEC_API_ENDPOINT" -sip "$SEC_IP" -rc "$RC")
     else
-        $PY3PAR unexportVV -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -n "$NAME" -hs "$HOST"
+        log "Unexporting $NAME from $HOST"
+        RESULT=$($PY3PAR unexportVV -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -n "$NAME" \
+                                    -hs "$HOST")
     fi
 
     if [ $? -ne 0 ]; then
-      error_message "Error unexporting VV"
+      error_message "Error unexporting VV: $RESULT"
       exit 1
     fi
 }
@@ -242,12 +244,12 @@ function export_vv {
     local RC="${3:-NO}"
     local LUN
 
-    log "Mapping remote $NAME to $HOST"
-
     if [[ "$RC" == "YES" ]]; then
+        log "Mapping remote $NAME to $HOST"
         LUN=$($PY3PAR exportVV -a "$API_ENDPOINT" -i "$IP" -sapi "$SEC_API_ENDPOINT" -sip "$SEC_IP" -s "$SECURE" \
                                -u "$USERNAME" -p "$PASSWORD" -n "$NAME" -hs "$HOST" -rc "YES")
     else
+        log "Mapping $NAME to $HOST"
         LUN=$($PY3PAR exportVV -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -n "$NAME" \
                                -hs "$HOST")
     fi
