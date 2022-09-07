@@ -32,6 +32,9 @@
 #   - vmid is the id of the VM
 #   - dsid is the target datastore (0 is the system datastore)
 
+trap "exit 1" TERM
+export TOP_PID=$$
+
 # ------------ Set up the environment to source common tools ------------
 
 if [ -z "${ONE_LOCATION}" ]; then
@@ -210,7 +213,7 @@ PREV_REMOTE_COPY="${XPATH_ELEMENTS[j++]:-NO}"
 # Overwrite NAME_WWN if disk is clone or volatile
 if [ "$CLONE" = "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
   # get VM disk WWN
-  NAME_WWN=$(get_vm_vv_clone_source "$VMID" "$DISK_ID")
+  NAME_WWN=$(get_vm_clone_vv_source "$PREV_API_ENDPOINT" "$PREV_IP" "$VMID" "$DISK_ID")
 
   # Disable remote copy for non-persistent disk
   REMOTE_COPY="NO"

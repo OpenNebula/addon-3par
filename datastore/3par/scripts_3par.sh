@@ -140,8 +140,8 @@ EOF
 }
 
 function remove_lun {
-    local WWN
-    WWN="$1"
+    local WWN="$1"
+
     cat <<EOF
       DEV="/dev/mapper/3$WWN"
 
@@ -256,7 +256,7 @@ function unexport_vv {
 
     if [ $? -ne 0 ]; then
       error_message "Error unexporting VV: $RESULT"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 }
 
@@ -278,7 +278,7 @@ function export_vv {
 
     if [ $? -ne 0 ]; then
       error_message "$LUN"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 
     echo "$LUN"
@@ -296,7 +296,7 @@ function delete_vm_clone_vv {
 
   if [ $? -ne 0 ]; then
       error_message "$DEL"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 }
 
@@ -308,7 +308,7 @@ function host_exists {
 
     if [ $? -ne 0 ]; then
       error_message "$HOST_3PAR"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 
     echo "$HOST_3PAR"
@@ -326,7 +326,7 @@ function remove_vv_from_rcg {
 
     if [ $? -ne 0 ]; then
       error_message "$RCG"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 }
 
@@ -343,7 +343,7 @@ function add_vv_to_rcg {
 
     if [ $? -ne 0 ]; then
       error_message "$RCG"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 
     log "$RCG"
@@ -360,7 +360,7 @@ function remove_vv_from_vvset {
 
     if [ $? -ne 0 ]; then
       error_message "$VVSET"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 }
 
@@ -375,13 +375,15 @@ function add_vv_to_vvset {
 
     if [ $? -ne 0 ]; then
       error_message "$VVSET"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 }
 
-function get_vm_vv_clone_source {
-    local VMID="$1"
-    local DISK_ID="$2"
+function get_vm_clone_vv_source {
+    local API_ENDPOINT="$1"
+    local IP="$2"
+    local VMID="$3"
+    local DISK_ID="$4"
     local NAME_WWN
 
     NAME_WWN=$($PY3PAR getVmClone -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" \
@@ -389,7 +391,7 @@ function get_vm_vv_clone_source {
 
     if [ $? -ne 0 ]; then
       error_message "$NAME_WWN"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 
     echo "$NAME_WWN"
@@ -406,7 +408,7 @@ function create_qos_policy {
 
     if [ $? -ne 0 ]; then
       error_message "$QOS"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 }
 
@@ -424,7 +426,7 @@ function create_vm_clone_vv {
 
     if [ $? -ne 0 ]; then
       error_message "$NAME_WWN"
-      exit 1
+      kill -s TERM $TOP_PID
     fi
 
     echo "$NAME_WWN"
