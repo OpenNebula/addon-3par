@@ -236,6 +236,7 @@ function remove_vv {
     local IP="$2"
     local NAME="$3"
     local WWN="$4"
+    local IS_MIGRATION="${5:-NO}"
 
     # flush disk only if src host is not in failed state
     if [ $LCM_STATE -ne 60 ] && [ $LCM_STATE -ne 61 ]; then
@@ -251,7 +252,7 @@ function remove_vv {
     # VM lcm state is EPILOG_UNDEPLOY
     # or migrating between RC and non-RC datastore
     # or migrating between storage systems
-    if [ $LCM_STATE -eq 30 ] || [ "$PREV_REMOTE_COPY" != "$REMOTE_COPY" ] || [ "$IP" != "$PREV_IP" ]; then
+    if [ $LCM_STATE -eq 30 ] || [ "$PREV_REMOTE_COPY" != "$REMOTE_COPY" ] || [ "$IS_MIGRATION" == "YES" ]; then
         # perform cleanup
         if [ "$PREV_REMOTE_COPY" == "YES" ]; then
             remove_vv_from_rcg "$NAME" "$VMID"
@@ -266,11 +267,12 @@ function add_vv {
     local IP="$2"
     local NAME="$3"
     local WWN="$4"
+    local IS_MIGRATION="${5:-NO}"
 
     # VM lcm state is PROLOG_UNDEPLOY
     # or migrating between RC and non-RC datastore
     # or migrating between storage systems
-    if [ $LCM_STATE -eq 31 ] || [ "$PREV_REMOTE_COPY" != "$REMOTE_COPY" ] || [ "$IP" != "$PREV_IP" ]; then
+    if [ $LCM_STATE -eq 31 ] || [ "$PREV_REMOTE_COPY" != "$REMOTE_COPY" ] || [ "$IS_MIGRATION" == "YES" ]; then
         if [ "$REMOTE_COPY" == "YES" ]; then
             add_vv_to_rcg "$NAME" "$VMID"
 
@@ -331,13 +333,13 @@ if [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ]; then
 
     # src host is compute node, flush, unexport old vv and delete it
     if [ "$IS_SRC_HOST_3PAR" == "1" ]; then
-        remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$NAME" "$WWN"
+        remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$NAME" "$WWN" "YES"
         delete_vm_clone_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$VMID" "$DISK_ID"
     fi
 
     # dest host is compute node, export and discover new vv
     if [ "$IS_DST_HOST_3PAR" == "1" ]; then
-        add_vv "$API_ENDPOINT" "$IP" "$NEW_NAME" "$NEW_WWN"
+        add_vv "$API_ENDPOINT" "$IP" "$NEW_NAME" "$NEW_WWN" "YES"
     fi
 
     exit 0
