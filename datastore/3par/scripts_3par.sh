@@ -230,12 +230,21 @@ function map_and_copy_to_lun {
     CMD=$(cat <<EOF
         set -e
         $(discover_lun "$LUN" "$WWN")
+EOF
+)
+
+    ssh_exec_and_log "$HOST" "$CMD" \
+        "Error mapping $WWN to $HOST"
+
+
+    CMD=$(cat <<EOF
+        set -e -o pipefail
         dd \if=$SRC_DEV of=$DEV bs=${DD_BLOCK_SIZE:-64k}
 EOF
 )
 
     ssh_exec_and_log "$HOST" "$CMD" \
-        "Error mapping $WWN to $HOST and/or copy from $SRC_WWN to $WWN"
+         "Error copy from $SRC_WWN to $WWN"
 }
 
 function unexport_vv {

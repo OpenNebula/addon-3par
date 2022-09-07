@@ -315,14 +315,13 @@ if [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ]; then
 
     # and disk is clone or volatile, lets create new vv
     SRC_NAME=$(get_vv_name "$ORG_NAME_WWN")
-    SRC_WWN=$(get_vv_wwn "$ORG_NAME_WWN")
     NEW_NAME_WWN=$(create_vm_clone_vv "$SRC_NAME" "$VMID" "$DISK_ID" "$SIZE" "$VM_NAME")
     NEW_NAME=$(get_vv_name "$NEW_NAME_WWN")
     NEW_WWN=$(get_vv_wwn "$NEW_NAME_WWN")
 
     # export new vv and clone old one to it
     LUN=$(export_vv "$NEW_NAME" "$SRC_HOST")
-    map_and_copy_to_lun "$SRC_HOST" "$SRC_WWN" "$LUN" "$NEW_WWN"
+    map_and_copy_to_lun "$SRC_HOST" "$WWN" "$LUN" "$NEW_WWN"
 
     # unexport new vv
     unmap_lun "$SRC_HOST" "$NEW_WWN"
