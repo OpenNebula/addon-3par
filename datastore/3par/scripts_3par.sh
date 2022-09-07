@@ -164,10 +164,9 @@ EOF
 }
 
 function unmap_lun {
-  local HOST
-  local WWN
-  HOST="$1"
-  WWN="$2"
+  local HOST="$1"
+  local WWN="$2"
+  local PATH="$3"
   local CMD
 
   log "Unmapping $WWN from $HOST"
@@ -175,6 +174,7 @@ function unmap_lun {
   CMD=$(cat <<EOF
           set -e
           $(remove_lun "$WWN")
+          rm -f "$PATH"
 EOF
 )
 

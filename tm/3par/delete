@@ -187,6 +187,7 @@ if [ "$DST_HOST_3PAR" == "1" ]; then
   FLUSH_CMD=$(cat <<EOF
       set -e
       $(remove_lun "$WWN")
+      rm -f "$DST_PATH"
 EOF
 )
   
