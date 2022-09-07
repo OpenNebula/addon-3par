@@ -53,6 +53,8 @@ source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 # preserve vars from conf file
 CONF_API_ENDPOINT="$API_ENDPOINT"
 CONF_IP="$IP"
+CONF_SEC_API_ENDPOINT="$SEC_API_ENDPOINT"
+CONF_SEC_IP="$SEC_IP"
 
 # -------- Get mv and datastore arguments from OpenNebula core ------------
 
@@ -204,10 +206,14 @@ while IFS= read -r -d '' element; do
 done < <(onedatastore show -x $PREV_SYS_DSID | $XPATH \
                     /DATASTORE/TEMPLATE/API_ENDPOINT \
                     /DATASTORE/TEMPLATE/IP \
+                    /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/SEC_IP \
                     /DATASTORE/TEMPLATE/REMOTE_COPY)
 
 PREV_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$CONF_API_ENDPOINT}"
 PREV_IP="${XPATH_ELEMENTS[j++]:-$CONF_IP}"
+PREV_SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$CONF_SEC_API_ENDPOINT}"
+PREV_SEC_IP="${XPATH_ELEMENTS[j++]:-$CONF_SEC_IP}"
 PREV_REMOTE_COPY="${XPATH_ELEMENTS[j++]:-NO}"
 
 # Overwrite NAME_WWN if disk is clone or volatile
@@ -234,9 +240,11 @@ IS_DST_HOST_3PAR=$(host_exists "$DST_HOST")
 function remove_vv {
     local API_ENDPOINT="$1"
     local IP="$2"
-    local NAME="$3"
-    local WWN="$4"
-    local IS_MIGRATION="${5:-NO}"
+    local SEC_API_ENDPOINT="$3"
+    local SEC_IP="$4"
+    local NAME="$5"
+    local WWN="$6"
+    local IS_MIGRATION="${7:-NO}"
 
     # flush disk only if src host is not in failed state
     if [ $LCM_STATE -ne 60 ] && [ $LCM_STATE -ne 61 ]; then
@@ -263,11 +271,9 @@ function remove_vv {
 }
 
 function add_vv {
-    local API_ENDPOINT="$1"
-    local IP="$2"
-    local NAME="$3"
-    local WWN="$4"
-    local IS_MIGRATION="${5:-NO}"
+    local NAME="$1"
+    local WWN="$2"
+    local IS_MIGRATION="${3:-NO}"
 
     # VM lcm state is PROLOG_UNDEPLOY
     # or migrating between RC and non-RC datastore
@@ -310,8 +316,8 @@ if [ "$CLONE" == "NO" ] && [ "$TYPE" == "CDROM" ]; then
     [ "$RUNNING_VMS" != "1" ] && CAN_UNMAP=0
 fi
 
-# if moving to different 3par, but it is not a CDROM
-if [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ]; then
+# if moving to different 3par, but it is not a CDROM and not migrating between RC and non-RC datastore
+if [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] && [ "$PREV_REMOTE_COPY" == "$REMOTE_COPY" ]; then
     if [ "$CLONE" != "YES" ] && [ "$DISK_TYPE" != "FILE" ]; then
         error_message "Not supported action yet! Can not move persistent disk between storage systems!"
         exit 1
@@ -333,13 +339,13 @@ if [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ]; then
 
     # src host is compute node, flush, unexport old vv and delete it
     if [ "$IS_SRC_HOST_3PAR" == "1" ]; then
-        remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$NAME" "$WWN" "YES"
+        remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$PREV_SEC_API_ENDPOINT" "$PREV_SEC_IP" "$NAME" "$WWN" "YES"
         delete_vm_clone_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$VMID" "$DISK_ID"
     fi
 
     # dest host is compute node, export and discover new vv
     if [ "$IS_DST_HOST_3PAR" == "1" ]; then
-        add_vv "$API_ENDPOINT" "$IP" "$NEW_NAME" "$NEW_WWN" "YES"
+        add_vv "$NEW_NAME" "$NEW_WWN" "YES"
     fi
 
     exit 0
@@ -347,10 +353,10 @@ fi
 
 # src host is compute node
 if [ "$IS_SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
-    remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$NAME" "$WWN"
+    remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$PREV_SEC_API_ENDPOINT" "$PREV_SEC_IP" "$NAME" "$WWN"
 fi
 
 # dest host is compute node
 if [ "$IS_DST_HOST_3PAR" == "1" ]; then
-    add_vv "$API_ENDPOINT" "$IP" "$NAME" "$WWN"
+    add_vv "$NAME" "$WWN"
 fi
