@@ -84,7 +84,7 @@ fi
 # BEGIN 3PAR patch
 DRIVER_PATH=$(dirname $0)
 
-DISKS=$(virsh --connect $LIBVIRT_URI dumpxml $DEPLOY_ID | xmllint --xpath "//disk[@type='block']/source/@dev" 2>/dev/null - | sed 's/dev="//g' | sed 's/"//g')
+DISKS=$(xmllint --xpath "//disk[@type='block']/source/@dev" $FILE_XML 2>/dev/null | sed 's/dev="//g' | sed 's/"//g')
 
 for DISK in $DISKS; do
   sDev="$(readlink "$DISK")"
