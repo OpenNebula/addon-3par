@@ -206,7 +206,7 @@ REGISTER_CMD=$(cat <<EOF
     if [ "\$FORMAT" != "raw" ]; then
         $QEMU_IMG convert -O raw $TMP_DST $DEV
     else
-        dd \if=$TMP_DST of=$DEV bs=${DD_BLOCK_SIZE:-64k}
+        dd \if=$TMP_DST of=$DEV bs=${DD_BLOCK_SIZE:-64k} oflag=direct
     fi
 
     # remove original
