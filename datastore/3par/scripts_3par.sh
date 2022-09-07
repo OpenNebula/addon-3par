@@ -149,7 +149,11 @@ function remove_lun {
         DM_HOLDER=\$($SUDO $DMSETUP ls -o blkdevname | grep -Po "(?<=3$WWN\s\()[^)]+")
         DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
 
-        $(multipath_flush "\$DEV")
+        COUNTER=0
+        until [ \$COUNTER -gt 10 ] || $(multipath_flush "\$DEV"); do
+            sleep 1
+            ((COUNTER++))
+        done
 
         unset device
         for device in \${DM_SLAVE}
