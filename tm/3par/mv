@@ -47,6 +47,10 @@ DRIVER_PATH=$(dirname $0)
 source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 . ${DRIVER_PATH}/../../datastore/3par/scripts_3par.sh
 
+# preserve vars from conf file
+CONF_API_ENDPOINT="$API_ENDPOINT"
+CONF_IP="$IP"
+
 # -------- Get mv and datastore arguments from OpenNebula core ------------
 
 SRC=$1
@@ -116,21 +120,30 @@ unset i j XPATH_ELEMENTS
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onevm show -x $VMID| $XPATH \
+                    /VM/NAME \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SIZE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DISK_TYPE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/TYPE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
+VM_NAME="${XPATH_ELEMENTS[j++]//[^A-Za-z0-9\[\]() _~+-]/}"
+SIZE="${XPATH_ELEMENTS[j++]}"
 NAME_WWN="${XPATH_ELEMENTS[j++]}"
 IMAGE_ID="${XPATH_ELEMENTS[j++]}"
 CLONE="${XPATH_ELEMENTS[j++]}"
 PERSISTENT="${XPATH_ELEMENTS[j++]}"
 DISK_TYPE="${XPATH_ELEMENTS[j++]}"
+TYPE="${XPATH_ELEMENTS[j++]}"
 IMG_DSID="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
+
+# preserve original source
+ORG_NAME_WWN="$NAME_WWN"
 
 PREV_SYS_DSID=$(onevm show -x $VMID | xmllint --xpath 'string(/VM/HISTORY_RECORDS/HISTORY[last()-1]/DS_ID)' -)
 
@@ -144,10 +157,14 @@ while IFS= read -r -d '' element; do
 done < <(onedatastore show -x $SYS_DSID | $XPATH \
                     /DATASTORE/TEMPLATE/API_ENDPOINT \
                     /DATASTORE/TEMPLATE/IP \
+                    /DATASTORE/TEMPLATE/CPG \
                     /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
                     /DATASTORE/TEMPLATE/SEC_IP \
                     /DATASTORE/TEMPLATE/REMOTE_COPY \
                     /DATASTORE/TEMPLATE/SEC_CPG \
+                    /DATASTORE/TEMPLATE/THIN \
+                    /DATASTORE/TEMPLATE/DEDUP \
+                    /DATASTORE/TEMPLATE/COMPRESSION \
                     /DATASTORE/TEMPLATE/QOS_ENABLE \
                     /DATASTORE/TEMPLATE/QOS_PRIORITY \
                     /DATASTORE/TEMPLATE/QOS_MAX_IOPS \
@@ -158,10 +175,14 @@ done < <(onedatastore show -x $SYS_DSID | $XPATH \
 
 API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
 IP="${XPATH_ELEMENTS[j++]:-$IP}"
+CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
 SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
 SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
 REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 SEC_CPG="${XPATH_ELEMENTS[j++]:-$SEC_CPG}"
+THIN="${XPATH_ELEMENTS[j++]:-$THIN}"
+DEDUP="${XPATH_ELEMENTS[j++]:-$DEDUP}"
+COMPRESSION="${XPATH_ELEMENTS[j++]:-$COMPRESSION}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 QOS_PRIORITY="${XPATH_ELEMENTS[j++]:-$QOS_PRIORITY}"
 QOS_MAX_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MAX_IOPS}"
@@ -178,8 +199,12 @@ unset i j XPATH_ELEMENTS
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onedatastore show -x $PREV_SYS_DSID | $XPATH \
+                    /DATASTORE/TEMPLATE/API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/IP \
                     /DATASTORE/TEMPLATE/REMOTE_COPY)
 
+PREV_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$CONF_API_ENDPOINT}"
+PREV_IP="${XPATH_ELEMENTS[j++]:-$CONF_IP}"
 PREV_REMOTE_COPY="${XPATH_ELEMENTS[j++]:-NO}"
 
 # Overwrite NAME_WWN if disk is clone or volatile
@@ -201,31 +226,23 @@ IS_SRC_HOST_3PAR=$(host_exists "$SRC_HOST")
 IS_DST_HOST_3PAR=$(host_exists "$DST_HOST")
 
 #-------------------------------------------------------------------------------
-# Start actions
+# Subroutines
 #-------------------------------------------------------------------------------
+function remove_vv {
+    local API_ENDPOINT="$1"
+    local IP="$2"
+    local NAME="$3"
+    local WWN="$4"
 
-# Not persistent and not clone, so this disk can be used by more VMs at the same time
-# CDROM
-CAN_UNMAP=1
-if [ "$PERSISTENT" != "YES" ] && [ "$CLONE" == "NO" ]; then
-    # check if disk is in use by other VMs
-    RUNNING_VMS=$(get_image_running_vms_count "$IMAGE_ID")
-
-    # image is used, so can't unmap
-    [ "$RUNNING_VMS" != "1" ] && CAN_UNMAP=0
-fi
-
-# src host is compute node
-if [ "$IS_SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
     # flush disk only if src host is not in failed state
     if [ $LCM_STATE -ne 60 ] && [ $LCM_STATE -ne 61 ]; then
         unmap_lun "$SRC_HOST" "$WWN"
     fi
 
-    unexport_vv $NAME $SRC_HOST
+    unexport_vv "$NAME" "$SRC_HOST"
 
     if [ "$PREV_REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
-        unexport_vv $NAME $SRC_HOST "YES"
+        unexport_vv "$NAME" "$SRC_HOST" "YES"
     fi
 
     # VM lcm state is EPILOG_UNDEPLOY
@@ -238,10 +255,14 @@ if [ "$IS_SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
             remove_vv_from_vvset "$NAME" "$VMID"
         fi
     fi
-fi
+}
 
-# dest host is compute node
-if [ "$IS_DST_HOST_3PAR" == "1" ]; then
+function add_vv {
+    local API_ENDPOINT="$1"
+    local IP="$2"
+    local NAME="$3"
+    local WWN="$4"
+
     # VM lcm state is PROLOG_UNDEPLOY
     # or migrating between RC and non-RC datastore
     if [ $LCM_STATE -eq 31 ] || [ "$PREV_REMOTE_COPY" != "$REMOTE_COPY" ]; then
@@ -266,4 +287,64 @@ if [ "$IS_DST_HOST_3PAR" == "1" ]; then
 
     LUN=$(export_vv "$NAME" "$DST_HOST")
     map_lun "$DST_HOST" "$LUN" "$WWN" "$DST_DIR" "$DST_PATH"
+}
+
+#-------------------------------------------------------------------------------
+# Start actions
+#-------------------------------------------------------------------------------
+
+# CDROM, so this disk can be used by more VMs at the same time
+CAN_UNMAP=1
+if [ "$CLONE" == "NO" ] && [ "$TYPE" == "CDROM" ]; then
+    # check if disk is in use by other VMs
+    RUNNING_VMS=$(get_image_running_vms_count "$IMAGE_ID")
+
+    # image is used, so can't unmap
+    [ "$RUNNING_VMS" != "1" ] && CAN_UNMAP=0
+fi
+
+# if moving to different 3par, but it is not a CDROM
+if [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ]; then
+    if [ "$CLONE" != "YES" ] && [ "$DISK_TYPE" != "FILE" ]; then
+        error_message "Not supported action yet! Can not move persistent disk between storage systems!"
+        exit 1
+    fi
+
+    # and disk is clone or volatile, lets create new vv
+    SRC_NAME=$(get_vv_name "$ORG_NAME_WWN")
+    SRC_WWN=$(get_vv_wwn "$ORG_NAME_WWN")
+    NEW_NAME_WWN=$(create_vm_clone_vv "$SRC_NAME" "$VMID" "$DISK_ID" "$SIZE" "$VM_NAME")
+    NEW_NAME=$(get_vv_name "$NEW_NAME_WWN")
+    NEW_WWN=$(get_vv_wwn "$NEW_NAME_WWN")
+
+    # export new vv and clone old one to it
+    LUN=$(export_vv "$NEW_NAME" "$SRC_HOST")
+    map_and_copy_to_lun "$SRC_HOST" "$SRC_WWN" "$LUN" "$NEW_WWN"
+
+    # unexport new vv
+    unmap_lun "$SRC_HOST" "$NEW_WWN"
+    unexport_vv "$NEW_NAME" "$SRC_HOST"
+
+    # src host is compute node, flush, unexport old vv and delete it
+    if [ "$IS_SRC_HOST_3PAR" == "1" ]; then
+        remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$NAME" "$WWN"
+        delete_vm_clone_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$VMID" "$DISK_ID"
+    fi
+
+    # dest host is compute node, export and discover new vv
+    if [ "$IS_DST_HOST_3PAR" == "1" ]; then
+        add_vv "$API_ENDPOINT" "$IP" "$NEW_NAME" "$NEW_WWN"
+    fi
+
+    exit 0
+fi
+
+# src host is compute node
+if [ "$IS_SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
+    remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$NAME" "$WWN"
+fi
+
+# dest host is compute node
+if [ "$IS_DST_HOST_3PAR" == "1" ]; then
+    add_vv "$API_ENDPOINT" "$IP" "$NAME" "$WWN"
 fi

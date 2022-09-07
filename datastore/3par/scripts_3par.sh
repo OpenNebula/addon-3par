@@ -33,8 +33,8 @@ else
 fi
 
 function multipath_flush {
-    local MAP_NAME
-    MAP_NAME="$1"
+    local MAP_NAME="$1"
+
     echo "$SUDO $MULTIPATH -f $MAP_NAME"
 }
 
@@ -44,15 +44,15 @@ function multipath_rescan {
 }
 
 function multipath_resize {
-    local MAP_NAME
-    MAP_NAME="$1"
+    local MAP_NAME="$1"
+
     echo "$SUDO $MULTIPATHD -k\"resize map $MAP_NAME\""
 }
 
 function rescan_scsi_bus {
-  local LUN
+  local LUN="$1"
   local FORCE
-  LUN="$1"
+
   # important to ignore rev, otherwise rescan failed when 3PAR OS get major update and device is online resized
   # https://gitlab.feldhost.cz/feldhost-public/one-addon-3par/-/issues/1
   [ "$2" == "force" ] && FORCE=" --forcerescan  --ignore-rev"
@@ -61,22 +61,20 @@ function rescan_scsi_bus {
 }
 
 function get_vv_name {
-  local NAME_WWN
-  NAME_WWN="$1"
+  local NAME_WWN="$1"
+
   echo "$NAME_WWN" | $AWK -F: '{print $1}'
 }
 
 function get_vv_wwn {
-  local NAME_WWN
-  NAME_WWN="$1"
+  local NAME_WWN="$1"
+
   echo "$NAME_WWN" | $AWK -F: '{print $2}'
 }
 
 function image_update {
-  local ID
-  local DATA
-  ID="$1"
-  DATA="$2"
+  local ID="$1"
+  local DATA="$2"
 
   _TEMPLATE=$(mktemp -t oneimageUpdate-XXXXXXXXXX)
   trap "rm -f \"$_TEMPLATE\"" TERM INT QUIT HUP EXIT
@@ -97,10 +95,9 @@ function get_image_running_vms_count {
 }
 
 function discover_lun {
-    local LUN
-    local WWN
-    LUN="$1"
-    WWN="$2"
+    local LUN="$1"
+    local WWN="$2"
+
     cat <<EOF
         $(rescan_scsi_bus "$LUN")
         $(multipath_rescan)
@@ -171,29 +168,32 @@ function unmap_lun {
   local WWN
   HOST="$1"
   WWN="$2"
+  local CMD
 
   log "Unmapping $WWN from $HOST"
 
-  FLUSH_CMD=$(cat <<EOF
+  CMD=$(cat <<EOF
           set -e
           $(remove_lun "$WWN")
 EOF
 )
 
-  ssh_exec_and_log "$HOST" "$FLUSH_CMD" "Error flushing out mapping"
+  ssh_exec_and_log "$HOST" "$CMD" \
+    "Error flushing out mapping"
 }
 
 function rescan_lun {
     local HOST="$1"
     local LUN="$2"
+    local CMD
 
-    RESCAN_CMD=$(cat <<EOF
+    CMD=$(cat <<EOF
                 set -e
                 $(rescan_scsi_bus "$LUN")
 EOF
 )
 
-    ssh_exec_and_log "$HOST" "$RESCAN_CMD" \
+    ssh_exec_and_log "$HOST" "$CMD" \
       "Error registering remote $LUN to $HOST"
 }
 
@@ -203,8 +203,9 @@ function map_lun {
     local WWN="$3"
     local DST_DIR="$4"
     local DST_PATH="$5"
+    local CMD
 
-    DISCOVER_CMD=$(cat <<EOF
+    CMD=$(cat <<EOF
         set -e
         mkdir -p "$DST_DIR"
         $(discover_lun "$LUN" "$WWN")
@@ -212,8 +213,29 @@ function map_lun {
 EOF
 )
 
-    ssh_exec_and_log "$HOST" "$DISCOVER_CMD" \
+    ssh_exec_and_log "$HOST" "$CMD" \
         "Error registering $WWN to $HOST"
+}
+
+function map_and_copy_to_lun {
+    local HOST="$1"
+    local SRC_WWN="$2"
+    local LUN="$3"
+    local WWN="$4"
+    local DEV SRC_DEV CMD
+
+    SRC_DEV="/dev/mapper/3$SRC_WWN"
+    DEV="/dev/mapper/3$WWN"
+
+    CMD=$(cat <<EOF
+        set -e
+        $(discover_lun "$LUN" "$WWN")
+        dd \if=$SRC_DEV of=$DEV bs=${DD_BLOCK_SIZE:-64k}
+EOF
+)
+
+    ssh_exec_and_log "$HOST" "$CMD" \
+        "Error mapping $WWN to $HOST and/or copy from $SRC_WWN to $WWN"
 }
 
 function unexport_vv {
@@ -260,6 +282,22 @@ function export_vv {
     fi
 
     echo "$LUN"
+}
+
+function delete_vm_clone_vv {
+  local API_ENDPOINT="$1"
+  local IP="$2"
+  local VMID="$3"
+  local DISK_ID="$4"
+  local DEL
+
+  DEL=$($PY3PAR deleteVmClone -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" \
+                              -nt "$NAMING_TYPE" -vi "$VMID" -id "$DISK_ID")
+
+  if [ $? -ne 0 ]; then
+      error_message "$DEL"
+      exit 1
+    fi
 }
 
 function host_exists {
@@ -370,4 +408,24 @@ function create_qos_policy {
       error_message "$QOS"
       exit 1
     fi
+}
+
+function create_vm_clone_vv {
+    local SRC_NAME="$1"
+    local VMID="$2"
+    local DISK_ID="$3"
+    local SIZE="$4"
+    local COMMENT="$5"
+    local NAME_WWN
+
+    NAME_WWN=$($PY3PAR createVmClone -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" \
+                        -nt "$NAMING_TYPE" -tpvv "$THIN" -tdvv "$DEDUP" -compr "$COMPRESSION" -sn "$SRC_NAME" -vi "$VMID" \
+                        -id "$DISK_ID" -c "$CPG" -sz "$SIZE" -co "$COMMENT")
+
+    if [ $? -ne 0 ]; then
+      error_message "$NAME_WWN"
+      exit 1
+    fi
+
+    echo "$NAME_WWN"
 }
