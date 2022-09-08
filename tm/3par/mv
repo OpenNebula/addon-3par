@@ -216,6 +216,16 @@ PREV_SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$CONF_SEC_API_ENDPOINT}"
 PREV_SEC_IP="${XPATH_ELEMENTS[j++]:-$CONF_SEC_IP}"
 PREV_REMOTE_COPY="${XPATH_ELEMENTS[j++]:-NO}"
 
+#-------------------------------------------------------------------------------
+# Check for compatibility
+#-------------------------------------------------------------------------------
+if [ "$PREV_REMOTE_COPY" == "NO" ] && [ "$REMOTE_COPY" == "YES" ] && [ "$PREV_IP" != "$IP" ]; then
+    error_message "You can not deploy to this RC enabled SYSTEM_DS because primary storage is different from actual one.
+    It will cause overwrite from remote image!
+    Please select RC enabled SYSTEM_DS with the same primary storage."
+    exit 1
+fi
+
 # Overwrite NAME_WWN if disk is clone or volatile
 if [ "$CLONE" = "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
   # get VM disk WWN
