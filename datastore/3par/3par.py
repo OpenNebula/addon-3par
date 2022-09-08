@@ -475,8 +475,17 @@ def unexportVV(cl, args):
 def createVmClone(cl, args):
     destName = createVmCloneName(args.namingType, args.id, args.vmId)
 
-    # create new VV
-    vv = createVVWithName(cl, destName, args)
+    # check if destination VV exist
+    try:
+        vv = cl.getVolume(destName)
+        if 'expirationTimeSec' in vv:
+            cl.modifyVolume(destName, {'rmExpTime': True})
+        else:
+            print "Destination volume already exists and it is not mark as deleted!"
+            exit(1)
+    except exceptions.HTTPNotFound:
+        # create new VV
+        vv = createVVWithName(cl, destName, args)
 
     # define optional for speed up process
     optional = {'priority': 1, 'skipZero': True}
