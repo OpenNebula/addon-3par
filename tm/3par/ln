@@ -96,10 +96,12 @@ unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $DSID | $XPATH /DATASTORE/TEMPLATE/CPG)
-
+done < <(onedatastore show -x $DSID | $XPATH \
+                                /DATASTORE/TEMPLATE/CPG \
+                                /DATASTORE/TEMPLATE/IP)
 
 CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
+IMG_IP="${XPATH_ELEMENTS[j++]:-$IP}"
 
 #-------------------------------------------------------------------------------
 # Get system ds information
@@ -137,6 +139,15 @@ QOS_MIN_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MIN_IOPS}"
 QOS_MAX_BW="${XPATH_ELEMENTS[j++]:-$QOS_MAX_BW}"
 QOS_MIN_BW="${XPATH_ELEMENTS[j++]:-$QOS_MIN_BW}"
 QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
+
+#-------------------------------------------------------------------------------
+# Check for compatibility
+#-------------------------------------------------------------------------------
+if [ "$IMG_IP" != "$IP" ]; then
+    # TODO: add support in ds/clone to clone between storage systems and add hint to the following error_message
+    error_message "The image $IMAGE_ID  is located in different storage system. Can not deploy to this system datastore!"
+    exit 1
+fi
 
 #-------------------------------------------------------------------------------
 # Start actions
