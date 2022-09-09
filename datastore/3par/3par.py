@@ -852,6 +852,10 @@ def addVolumeToRCGroup(cl, args):
         # rc group already in starting/started state
         if rcgState == 2 or rcgState == 3:
             shouldStartRcg = False
+            # check for peer persistance enabled
+            if rcg.get("targets")[0].get("policies").get("pathManagement"):
+                cl.stopRemoteCopy(rcgName)
+                shouldStartRcg = True
     except exceptions.HTTPNotFound:
         print 'Remote Copy group does not exists, create new'
         targets, optional, policies = getRCGroupParams(targetName, args)
