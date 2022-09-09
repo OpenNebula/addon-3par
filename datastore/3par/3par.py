@@ -718,12 +718,24 @@ def deleteSnapshot(cl, args):
 
     name = createSnapshotName(srcName, snapId)
 
-    if args.softDelete:
-        cl.modifyVolume(name, {'expirationHours': 168})
-        args.remoteCopy and scl.modifyVolume(name, {'expirationHours': 168})
-    else:
-        cl.deleteVolume(name)
-        args.remoteCopy and scl.deleteVolume(name)
+    # local
+    try:
+        if args.softDelete:
+            cl.modifyVolume(name, {'expirationHours': 168})
+        else:
+            cl.deleteVolume(name)
+    except exceptions.HTTPNotFound:
+        pass
+
+    # remote
+    if args.remoteCopy:
+        try:
+            if args.softDelete:
+                scl.modifyVolume(name, {'expirationHours': 168})
+            else:
+                scl.deleteVolume(name)
+        except exceptions.HTTPNotFound:
+            pass
 
 
 def flattenSnapshot(cl, args):
@@ -742,10 +754,10 @@ def flattenSnapshot(cl, args):
     # delete all snapshots
     snapshots = cl.getVolumeSnapshots(srcName)
     for snap in snapshots:
+        # local
         try:
             if args.softDelete:
                 cl.modifyVolume(snap, {'expirationHours': 168})
-                args.remoteCopy and scl.modifyVolume(snap, {'expirationHours': 168})
             else:
                 # need to wait for snapshot promoting
                 done = False
@@ -755,10 +767,18 @@ def flattenSnapshot(cl, args):
                         done = True
                     except exceptions.HTTPConflict:
                         time.sleep(5)
-
-                args.remoteCopy and scl.deleteVolume(snap)
         except exceptions.HTTPNotFound:
             pass
+
+        # remote
+        if args.remoteCopy:
+            try:
+                if args.softDelete:
+                    scl.modifyVolume(snap, {'expirationHours': 168})
+                else:
+                    scl.deleteVolume(snap)
+            except exceptions.HTTPNotFound:
+                pass
 
 
 def hostExists(cl, args):
