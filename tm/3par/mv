@@ -350,7 +350,7 @@ if [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] && [ "$PREV_REMOTE_COPY" ==
 
     # and disk is clone or volatile, lets create new vv
     SRC_NAME=$(get_vv_name "$ORG_NAME_WWN")
-    NEW_NAME_WWN=$(create_vm_clone_vv "$SRC_NAME" "$VMID" "$DISK_ID" "$SIZE" "$VM_NAME")
+    NEW_NAME_WWN=$(create_vm_clone_vv "$SRC_NAME" "$VMID" "$DISK_ID" "$SIZE" "$VM_NAME" "YES")
     NEW_NAME=$(get_vv_name "$NEW_NAME_WWN")
     NEW_WWN=$(get_vv_wwn "$NEW_NAME_WWN")
 

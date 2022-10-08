@@ -429,11 +429,12 @@ function create_vm_clone_vv {
     local DISK_ID="$3"
     local SIZE="$4"
     local COMMENT="$5"
+    local EMPTY="$6"
     local NAME_WWN
 
     NAME_WWN=$($PY3PAR createVmClone -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" \
                         -nt "$NAMING_TYPE" -tpvv "$THIN" -tdvv "$DEDUP" -compr "$COMPRESSION" -sn "$SRC_NAME" -vi "$VMID" \
-                        -id "$DISK_ID" -c "$CPG" -sz "$SIZE" -co "$COMMENT")
+                        -id "$DISK_ID" -c "$CPG" -sz "$SIZE" -co "$COMMENT" -e "$EMPTY")
 
     if [ $? -ne 0 ]; then
       error_message "$NAME_WWN"

@@ -142,6 +142,7 @@ createVmCloneParser.add_argument('-tpvv', '--tpvv', help='Thin provision', type=
 createVmCloneParser.add_argument('-tdvv', '--tdvv', help='Thin provision with deduplication', type=boolarg, default=False)
 createVmCloneParser.add_argument('-compr', '--compression', help='Thin provision compressed volume', type=boolarg, default=False)
 createVmCloneParser.add_argument('-co', '--comment', help='Comment')
+createVmCloneParser.add_argument('-e', '--empty', help='Just create empty volume - not copy from src', type=boolarg, default=False)
 
 # CreateVmVV task parser
 createVmVVParser = subparsers.add_parser('createVmVV', parents=[commonParser], help='Create new VM VV')
@@ -486,6 +487,11 @@ def createVmClone(cl, args):
     except exceptions.HTTPNotFound:
         # create new VV
         vv = createVVWithName(cl, destName, args)
+
+    if args.empty:
+        wwn = vv.get('wwn').lower()
+        print '{name}:{wwn}'.format(name=destName, wwn=wwn)
+        exit(0)
 
     # define optional for speed up process
     optional = {'priority': 1, 'skipZero': True}
