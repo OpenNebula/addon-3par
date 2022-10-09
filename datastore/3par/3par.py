@@ -58,6 +58,11 @@ monitorVmDisksParser.add_argument('-di', '--datastoreId', help='DS ID', type=int
 monitorVmDisksParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
 monitorVmDisksParser.add_argument('-lf', '--legacyFormat', help='Legacy format to support OpenNebula <5.12', type=boolarg, default=False)
 
+# EnableRCOnImageDS task parser
+enableRCOnImageDSParser = subparsers.add_parser('enableRCOnImageDS', parents=[commonParser], help='Enable RC on image DS. Create RC group and add to it all non-persistent images.')
+enableRCOnImageDSParser.add_argument('-di', '--datastoreId', help='DS ID', type=int, required=True)
+enableRCOnImageDSParser.add_argument('-rcm', '--remoteCopyMode', help='Remote Copy mode', choices=['SYNC', 'PERIODIC', 'ASYNC'], required=True)
+
 # CreateVV task parser
 createVVParser = subparsers.add_parser('createVV', parents=[commonParser], help='Create new VV')
 createVVParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
@@ -348,6 +353,47 @@ def monitorVmDisks(cl, args):
           print result + ' '.join(diskResult) + '"]'
       else:
           print result + b64encode(' '.join(diskResult).encode('ascii')).decode('ascii') + '"]'
+
+
+def enableRCOnImageDS(cl, args):
+    import subprocess
+    import xmltodict
+
+    # fetch image pool
+    imagesXml = subprocess.check_output('oneimage list -x'.format(id=args.datastoreId), shell=True)
+    images = xmltodict.parse(imagesXml, force_list=('IMAGE',))
+
+    if images['IMAGE_POOL'] is None:
+        return
+
+    # fetch ds info
+    dsXml = subprocess.check_output('onedatastore show {id} -x'.format(id=args.datastoreId), shell=True)
+    ds = xmltodict.parse(dsXml)
+    dsTemplate = ds.get('DATASTORE').get('TEMPLATE')
+
+    # check if RC is enabled
+    if dsTemplate.get('REMOTE_COPY') != 'YES':
+        print 'Remote Copy is not enabled for this datastore'
+        exit(1)
+
+    # prepare RC params
+    args.remoteCopyGroupName = '{naming_type}.one.ds.{ds_id}'.format(naming_type=dsTemplate.get('NAMING_TYPE'), ds_id=args.datastoreId)
+    args.remoteCopyHA = False
+    args.cpg = dsTemplate.get('CPG')
+    args.secCpg = dsTemplate.get('SEC_CPG')
+
+    # iterate over images
+    for image in images.get('IMAGE_POOL')['IMAGE']:
+        # filter out images by datastore ID and we copy only non-persistent
+        if args.datastoreId != int(image.get('DATASTORE_ID')) or int(image.get('PERSISTENT')) == 1:
+            continue
+
+        # asign image name and add to remote copy group
+        source = image.get('SOURCE').split(':')
+        args.name = source[0]
+        print 'Adding image {name} ({vv}) to RCG {rcgName}'.format(name=image.get('NAME'), vv=args.name, rcgName=args.remoteCopyGroupName)
+        addVolumeToRCGroup(cl, args)
+
 
 def createVV(cl, args):
     name = createVVName(args.namingType, args.id)
