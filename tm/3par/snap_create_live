@@ -107,11 +107,6 @@ LIBVIRT_URI="${QEMU_PROTOCOL}://${SRC_HOST}/system"
 
 if virsh -c $LIBVIRT_URI domfsfreeze $DEPLOY_ID ; then
     trap "virsh -c $LIBVIRT_URI domfsthaw $DEPLOY_ID" EXIT TERM INT HUP
-elif virsh -c $LIBVIRT_URI suspend $DEPLOY_ID; then
-    trap "virsh -c $LIBVIRT_URI resume $DEPLOY_ID" EXIT TERM INT HUP
-else
-    error_message "Could not domfsfreeze or suspend domain"
-    exit 1
 fi
 
 python ${DRIVER_PATH}/../../datastore/3par/3par.py createSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -sapi $SEC_API_ENDPOINT \
