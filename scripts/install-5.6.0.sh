@@ -20,8 +20,8 @@
 
 end_msg=
 
-# install datastore and tm MAD
-for MAD in datastore tm; do
+# install datastore and tm MAD, hooks
+for MAD in datastore tm hooks; do
     M_DIR="${ONE_VAR}/remotes/${MAD}"
     echo "*** Installing ${M_DIR}/3par ..."
     mkdir -pv "${M_DIR}/3par"
