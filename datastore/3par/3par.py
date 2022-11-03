@@ -1001,6 +1001,7 @@ def deleteVolumeFromRCGroup(cl, args):
 
     # remove volume from rc group
     try:
+        # TODO: don't stop if unnecessary, like RCG for image datastore without HA (PathManagement)
         cl.stopRemoteCopy(rcgName)
         cl.removeVolumeFromRemoteCopyGroup(rcgName, args.name)
     except exceptions.HTTPNotFound:
