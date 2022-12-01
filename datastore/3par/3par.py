@@ -592,6 +592,9 @@ def createVVSetSnapshot(cl, args):
         vvsetName = 'RCP_{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
     else:
         vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+        # limit length of vvset name to 27 chars
+        # it is limit of 3par system
+        vvsetName = vvsetName[0:27]
 
     # get volume set info
     try:
@@ -649,6 +652,9 @@ def deleteVVSetSnapshot(cl, args):
         vvsetName = 'RCP_{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
     else:
         vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+        # limit length of vvset name to 27 chars
+        # it is limit of 3par system
+        vvsetName = vvsetName[0:27]
 
     # get volume set info
     try:
@@ -844,6 +850,10 @@ def hostExists(cl, args):
 def addVolumeToVVSet(cl, args):
     vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
 
+    # limit length of vvset name to 27 chars
+    # it is limit of 3par system
+    vvsetName = vvsetName[0:27]
+
     # get or create vvset
     try:
         cl.getVolumeSet(vvsetName)
@@ -860,6 +870,10 @@ def addVolumeToVVSet(cl, args):
 
 def deleteVolumeFromVVSet(cl, args):
     vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+
+    # limit length of vvset name to 27 chars
+    # it is limit of 3par system
+    vvsetName = vvsetName[0:27]
 
     # remove volume from volume set
     try:
@@ -891,6 +905,9 @@ def createQosPolicy(cl, args):
         vvsetName = 'RCP_{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
     else:
         vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+        # limit length of vvset name to 27 chars
+        # it is limit of 3par system
+        vvsetName = vvsetName[0:27]
 
     # create QoS policy if not exists
     qosRules = prepareQosRules(args)
