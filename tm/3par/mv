@@ -152,6 +152,10 @@ ORG_NAME_WWN="$NAME_WWN"
 
 PREV_SYS_DSID=$(onevm show -x $VMID | xmllint --xpath 'string(/VM/HISTORY_RECORDS/HISTORY[last()-1]/DS_ID)' -)
 
+if [ -z "$PREV_SYS_DSID" ]; then
+  PREV_SYS_DSID=$SYS_DSID
+fi
+
 #-------------------------------------------------------------------------------
 # Get system ds information
 #-------------------------------------------------------------------------------
