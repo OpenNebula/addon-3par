@@ -21,6 +21,8 @@ mode, because it is running with Peer Persistance and it has two groups of paths
 
 We can check RCG state in SSMC, and when volume(s) is fully synchronized we can proceed to next step.
 
+**!!! IMPORTANT !!! Volume have to be fully synchronized.**
+
 In sustone select again same dialog, select same host but for datastore select System_DS_B. VM goes to suspend state, 
 RC Group will be removed and VM become unsuspended, but now running from 3PAR B.
 
