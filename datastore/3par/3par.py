@@ -326,7 +326,7 @@ def monitorVmDisks(cl, args):
     if vms['VM_POOL'] is None:
       return
     for vm in vms.get('VM_POOL')['VM']:
-      if args.datastoreId != int(vm.get('HISTORY_RECORDS')['HISTORY'].get('DS_ID')):
+      if vm.get('HISTORY_RECORDS') is None or args.datastoreId != int(vm.get('HISTORY_RECORDS')['HISTORY'].get('DS_ID')):
         continue
 
       if args.legacyFormat:
