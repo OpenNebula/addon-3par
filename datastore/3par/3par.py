@@ -1135,11 +1135,14 @@ def createVVWithName(cl, name, args):
 
 def deleteVVWithName(cl, name):
     if args.softDelete:
-        cl.modifyVolume(name, {'expirationHours': 168})
-        # find and delete snapshots
-        snapshots = cl.getVolumeSnapshots(name)
-        for snap in snapshots:
-            cl.modifyVolume(snap, {'expirationHours': 168})
+        try:
+            cl.modifyVolume(name, {'expirationHours': 168})
+            # find and delete snapshots
+            snapshots = cl.getVolumeSnapshots(name)
+            for snap in snapshots:
+                cl.modifyVolume(snap, {'expirationHours': 168})
+        except exceptions.HTTPNotFound:
+            pass
     else:
         try:
             cl.deleteVolume(name)
@@ -1166,6 +1169,8 @@ def deleteVVWithName(cl, name):
                         exit(1)
                     i += 1
                     time.sleep(5)
+        except exceptions.HTTPNotFound:
+            pass
 
 def prepareQosRules(args):
     qosRules = {
