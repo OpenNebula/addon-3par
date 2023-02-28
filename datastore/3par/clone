@@ -89,6 +89,18 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+#-------------------------------------------------------------------------------
+# Clone operation take a while and in meantime, persistent attr can be changed
+# so check again, for image persistent state
+#-------------------------------------------------------------------------------
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(oneimage show -x $ID| $XPATH /IMAGE/PERSISTENT)
+
+PERSISTENT="${XPATH_ELEMENTS[j++]}"
+
 # ----------- Add image to RC Group -------
 # only non-persistent images
 if [ "$PERSISTENT" == "0" ] && [ "$REMOTE_COPY" == "YES" ]; then
