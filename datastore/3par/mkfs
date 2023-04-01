@@ -97,19 +97,6 @@ fi
 NAME=$(get_vv_name "$NAME_WWN")
 WWN=$(get_vv_wwn "$NAME_WWN")
 
-#-------------------------------------------------------------------------------
-# Persistent attr can be changed
-# so check again, for image persistent state
-#-------------------------------------------------------------------------------
-sleep 3
-unset i j XPATH_ELEMENTS
-
-while IFS= read -r -d '' element; do
-    XPATH_ELEMENTS[i++]="$element"
-done < <(oneimage show -x $ID| $XPATH /IMAGE/PERSISTENT)
-
-PERSISTENT="${XPATH_ELEMENTS[j++]}"
-
 # ----------- Add image to RC Group -------
 # only non-persistent images
 if [ "$PERSISTENT" == "0" ] && [ "$REMOTE_COPY" == "YES" ]; then
