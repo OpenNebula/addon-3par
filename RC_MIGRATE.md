@@ -35,13 +35,15 @@ OpenNebula doesn't known about this migration, so we have to edit at lease three
 Update body of image(s) and disk(s) in VM, change image datastore ID and Name to Image_DS_B
 
 ```
-onedb update-body image --id IMAGE_ID
-onedb update-body vm --id VM_ID
+onedb change-body image --id IMAGE_ID /IMAGE/DATASTORE_ID DS_ID_B
+onedb change-body image --id IMAGE_ID /IMAGE/DATASTORE DS_NAME_B
+onedb change-body vm --id VM_ID /VM/TEMPLATE/DISK/DATASTORE_ID DS_ID_B
+onedb change-body vm --id VM_ID /VM/TEMPLATE/DISK/DATASTORE DS_NAME_B
 ```
 
 Update list of images in both image datastores, remove image ID from Image_DS_A and add it to Image_DS_B
 ```
-onedb update-body datastore --id DS_ID_A
+onedb change-body datastore --id DS_ID_A /DATASTORE/IMAGES/ID[.=IMAGE_ID] --delete
 onedb update-body datastore --id DS_ID_B
 ```
 
