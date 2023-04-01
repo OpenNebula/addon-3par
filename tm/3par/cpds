@@ -99,5 +99,10 @@ if [ "$CLONE" != "YES" ]; then
   CLONE=0
 fi
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py copyVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                      -nt $NAMING_TYPE -id $DISK_ID -si $SNAP_ID -vi $VMID -d $NAME -c $CPG -vc $CLONE
+COPY=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py copyVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
+                                      -nt $NAMING_TYPE -id $DISK_ID -si $SNAP_ID -vi $VMID -d $NAME -c $CPG -vc $CLONE)
+
+if [ $? -ne 0 ]; then
+  error_message "$COPY"
+  exit 1
+fi
