@@ -1018,6 +1018,8 @@ def addVolumeToRCGroup(cl, args):
 
 
 def deleteVolumeFromRCGroup(cl, args):
+    shouldStartRcg = False
+
     if args.remoteCopyGroupName is None:
         rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
     else:
@@ -1025,8 +1027,15 @@ def deleteVolumeFromRCGroup(cl, args):
 
     # remove volume from rc group
     try:
-        # TODO: don't stop if unnecessary, like RCG for image datastore without HA (PathManagement)
-        cl.stopRemoteCopy(rcgName)
+        rcg = cl.getRemoteCopyGroup(rcgName)
+        rcgState = rcg.get('targets')[0].get('state')
+        # check if rc group in starting/started state
+        if rcgState == 2 or rcgState == 3:
+            # we need stop rcg only if peer persistence enabled
+            if rcg.get("targets")[0].get("policies").get("pathManagement"):
+                cl.stopRemoteCopy(rcgName)
+                shouldStartRcg = True
+
         cl.removeVolumeFromRemoteCopyGroup(rcgName, args.name)
     except exceptions.HTTPNotFound:
         print('Volume is already removed from rc group')
@@ -1041,15 +1050,16 @@ def deleteVolumeFromRCGroup(cl, args):
 
     # if there are other members them we do not remove VV Set
     if volumes and len(volumes) > 0:
-        # start rc group back
-        cl.startRemoteCopy(rcgName)
-        return
-
-    # delete rc group
-    try:
-        cl.removeRemoteCopyGroup(rcgName)
-    except exceptions.HTTPNotFound:
-        print('Remote Copy group does not exits')
+        if shouldStartRcg:
+            print('Start Remote Copy group')
+            # start rc group back
+            cl.startRemoteCopy(rcgName)
+    else:
+        # delete rc group
+        try:
+            cl.removeRemoteCopyGroup(rcgName)
+        except exceptions.HTTPNotFound:
+            print('Remote Copy group does not exits')
 
 
 # ----------------
