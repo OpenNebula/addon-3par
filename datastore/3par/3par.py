@@ -948,7 +948,7 @@ def addVolumeToRCGroup(cl, args):
         # rc group already in starting/started state
         if rcgState == 2 or rcgState == 3:
             shouldStartRcg = False
-            # check for peer persistance enabled
+            # check for peer persistence enabled
             if rcg.get("targets")[0].get("policies").get("pathManagement"):
                 cl.stopRemoteCopy(rcgName)
                 shouldStartRcg = True
