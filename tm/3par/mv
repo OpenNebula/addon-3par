@@ -360,7 +360,7 @@ if [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] && [ "$PREV_REMOTE_COPY" ==
 
     # export new vv and clone old one to it
     LUN=$(export_vv "$NEW_NAME" "$SRC_HOST")
-    map_and_copy_to_lun "$SRC_HOST" "$WWN" "$LUN" "$NEW_WWN" "$SRC_PATH"
+    map_and_copy_to_lun "$SRC_HOST" "$WWN" "$LUN" "$NEW_WWN"
 
     # unexport new vv
     unmap_lun "$SRC_HOST" "$NEW_WWN"

@@ -222,7 +222,6 @@ function map_and_copy_to_lun {
     local SRC_WWN="$2"
     local LUN="$3"
     local WWN="$4"
-    local SRC_PATH="$5"
     local DEV SRC_DEV CMD
 
     SRC_DEV="/dev/mapper/3$SRC_WWN"
@@ -231,7 +230,6 @@ function map_and_copy_to_lun {
     CMD=$(cat <<EOF
         set -e
         $(discover_lun "$LUN" "$WWN")
-        ln -sf "$DEV" "$SRC_PATH"
 EOF
 )
 
