@@ -79,11 +79,15 @@ Support standard OpenNebula datastore operations:
 * SYSTEM datastore
 * TRIM/discard in the VM when virtio-scsi driver is in use (require `DEV_PREFIX=sd` and `DISCARD=unmap`)
 * disk images can be full provisioned, thin provisioned, thin deduplicated, thin compressed or thin deduplicated and compressed RAW block devices
-* support different 3PAR CPGs as separate datastores
+* support different 3PAR CPGs as separate datastore
 * support for 3PAR Priority Optimization Policy (QoS)
 * live VM snapshots
 * live VM migrations
-* Volatile disks support (need patched KVM driver `attach_disk` script)
+* volatile disks support (need patched KVM driver `attach_disk` script)
+* support multiple storage systems
+* support Remote Copy with Peer Persistence
+* support Save As between storage systems
+* support migrations of VMs between storage systems
 * Sunstone integration - available via our enterprise repository
 
 ## Limitations
@@ -96,8 +100,7 @@ Support standard OpenNebula datastore operations:
 
 1. QOS Priority per VM
 1. Configuration of API auth in datastore template
-1. tm/cpds failing when SAVE AS non-persistent image deployed from RC enabled DS to remote 3PAR. It tries to save VM disk
-   to image DS pointing to local 3PAR, but VM disk is on remote 3PAR.
+1. ds/clone operation doesn't support cloning image between storage systems
 
 ## Installation
 
