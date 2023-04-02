@@ -375,6 +375,17 @@ if [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] && [ "$PREV_REMOTE_COPY" ==
     # dest host is compute node, export and discover new vv
     if [ "$IS_DST_HOST_3PAR" == "1" ]; then
         add_vv "$NEW_NAME" "$NEW_WWN" "YES"
+
+        # update disk symlink
+        CMD=$(cat <<EOF
+          set -e
+          DEV="/dev/mapper/3$NEW_WWN"
+          ln -sf "\$DEV" "$SRC_PATH"
+EOF
+)
+
+        ssh_exec_and_log "$SRC_HOST" "$CMD" \
+          "Error sym-linking $SRC_PATH on $SRC_HOST"
     fi
 
     exit 0
