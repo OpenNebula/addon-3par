@@ -96,6 +96,8 @@ Support standard OpenNebula datastore operations:
 
 1. QOS Priority per VM
 1. Configuration of API auth in datastore template
+1. tm/cpds failing when SAVE AS non-persistent image deployed from RC enabled DS to remote 3PAR. It tries to save VM disk
+   to image DS pointing to local 3PAR, but VM disk is on remote 3PAR.
 
 ## Installation
 
