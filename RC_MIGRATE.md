@@ -44,7 +44,9 @@ onedb change-body vm --id VM_ID /VM/TEMPLATE/DISK/DATASTORE DS_NAME_B
 Update list of images in both image datastores, remove image ID from Image_DS_A and add it to Image_DS_B
 ```
 onedb change-body datastore --id DS_ID_A /DATASTORE/IMAGES/ID[.=IMAGE_ID] --delete
-onedb update-body datastore --id DS_ID_B
+# attention! following command only work properly with PR https://github.com/OpenNebula/one/pull/6170
+# do not run without this patch, otherwise it overwrites all other image IDs
+onedb change-body datastore --id DS_ID_B /DATASTORE/IMAGES/ID IMAGE_ID --append
 ```
 
 ## Move VM with non-persistent disk from 3PAR A to B
