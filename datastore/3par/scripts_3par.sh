@@ -421,6 +421,22 @@ function create_qos_policy {
     fi
 }
 
+function disable_qos_policy {
+    local API_ENDPOINT="$1"
+    local IP="$2"
+    local VMID="$3"
+    local QOS
+
+    log "Disable QoS Policy"
+    QOS=$($PY3PAR disableQosPolicy -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" \
+                  -nt "$NAMING_TYPE" -vi "$VMID")
+
+    if [ $? -ne 0 ]; then
+      error_message "$QOS"
+      kill -s TERM $TOP_PID
+    fi
+}
+
 function create_vm_clone_vv {
     local SRC_NAME="$1"
     local VMID="$2"

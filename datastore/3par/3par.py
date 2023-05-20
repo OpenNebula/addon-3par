@@ -270,6 +270,12 @@ createQosPolicyParser.add_argument('-qmb', '--qosMinBw', help='QoS Min BW in kB/
 createQosPolicyParser.add_argument('-ql', '--qosLatency', help='QoS Latency in ms', type=int, required=True)
 createQosPolicyParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
+# DisableQosPolicyParser task parser
+disableQosPolicyParser = subparsers.add_parser('disableQosPolicy', parents=[commonParser],
+                                              help='Disable QoS policy on VM VV set')
+disableQosPolicyParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
+                                   default='dev')
+disableQosPolicyParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
 
 # addVolumeToRCGroup task parser
 addVolumeToRCGroupParser = subparsers.add_parser('addVolumeToRCGroup', parents=[commonParser],
@@ -929,6 +935,18 @@ def createQosPolicy(cl, args):
         secVvsetName = '{name}.r{sysId}'.format(name=vvsetName, sysId=sysId)
         # strip to 27 chars, like 3par
         setQosRules(scl, secVvsetName[0:27], qosRules)
+
+
+def disableQosPolicy(cl, args):
+    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+    # limit length of vvset name to 27 chars
+    # it is limit of 3par system
+    vvsetName = vvsetName[0:27]
+
+    try:
+        cl.modifyQoSRules(vvsetName, {'enable': False})
+    except exceptions.HTTPNotFound:
+        pass
 
 
 def addVolumeToRCGroup(cl, args):

@@ -360,6 +360,11 @@ if [ $LCM_STATE -ne 30 ] && [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] &&
     NEW_NAME=$(get_vv_name "$NEW_NAME_WWN")
     NEW_WWN=$(get_vv_wwn "$NEW_NAME_WWN")
 
+    # disable qos policy to speed up copy
+    if [ "$QOS_ENABLE" == "YES" ]; then
+        disable_qos_policy "$PREV_API_ENDPOINT" "$PREV_IP" "$VMID"
+    fi
+
     # export new vv and clone old one to it
     LUN=$(export_vv "$NEW_NAME" "$SRC_HOST")
     map_and_copy_to_lun "$SRC_HOST" "$WWN" "$LUN" "$NEW_WWN"
