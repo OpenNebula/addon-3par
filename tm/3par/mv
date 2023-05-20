@@ -331,7 +331,8 @@ if [ "$CLONE" == "NO" ] && [ "$TYPE" == "CDROM" ]; then
 fi
 
 # moving persistent disk between storage systems using remote copy, full switchover
-if [ "$PERSISTENT" == "YES" ] && [ "$IP" != "$PREV_IP" ] && [ "$REMOTE_COPY" == "YES" ] && [ "$PREV_REMOTE_COPY" == "YES" ]; then
+# only if VM lcm state not EPILOG_UNDEPLOY
+if [ $LCM_STATE -ne 30 ] && [ "$PERSISTENT" == "YES" ] && [ "$IP" != "$PREV_IP" ] && [ "$REMOTE_COPY" == "YES" ] && [ "$PREV_REMOTE_COPY" == "YES" ]; then
     # src host is compute node
     if [ "$IS_SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
         remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$PREV_SEC_API_ENDPOINT" "$PREV_SEC_IP" "$NAME" "$WWN" "YES"
@@ -346,7 +347,8 @@ if [ "$PERSISTENT" == "YES" ] && [ "$IP" != "$PREV_IP" ] && [ "$REMOTE_COPY" == 
 fi
 
 # if moving to different 3par, but it is not a CDROM and not migrating between RC and non-RC datastore
-if [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] && [ "$PREV_REMOTE_COPY" == "$REMOTE_COPY" ]; then
+# only if VM lcm state not EPILOG_UNDEPLOY
+if [ $LCM_STATE -ne 30 ] && [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] && [ "$PREV_REMOTE_COPY" == "$REMOTE_COPY" ]; then
     if [ "$CLONE" != "YES" ] && [ "$DISK_TYPE" != "FILE" ]; then
         error_message "Not supported action yet! Can not move persistent disk between storage systems!"
         exit 1
