@@ -439,7 +439,7 @@ def copyVV(cl, args):
   if snapId != "-1":
       srcName = createSnapshotName(srcName, snapId)
 
-  optional = {'skipZero': True}
+  optional = {'priority': 1, 'skipZero': True}
 
   cl.copyVolume(srcName, args.destName, args.cpg, optional)
 
