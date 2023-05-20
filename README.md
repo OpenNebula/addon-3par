@@ -88,6 +88,7 @@ Support standard OpenNebula datastore operations:
 * support Remote Copy with Peer Persistence
 * support Save As between storage systems
 * support migrations of VMs between storage systems
+* ds/clone operation support cloning image between storage systems
 * Sunstone integration - available via our enterprise repository
 
 ## Limitations
@@ -100,7 +101,6 @@ Support standard OpenNebula datastore operations:
 
 1. QOS Priority per VM
 1. Configuration of API auth in datastore template
-1. ds/clone operation doesn't support cloning image between storage systems
 
 ## Installation
 
