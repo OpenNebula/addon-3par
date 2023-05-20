@@ -30,7 +30,7 @@ RC Group will be removed and VM become unsuspended, but now running from 3PAR B.
 
 *TODO: This updates can be implemented into driver - tm/mv action.*
 
-OpenNebula doesn't known about this migration, so we have to edit at lease three DB entities using onedb command:
+OpenNebula doesn't known about this migration, so we have to edit at least three DB entities using onedb command:
 
 Update body of image(s) and disk(s) in VM, change image datastore ID and Name to Image_DS_B
 
