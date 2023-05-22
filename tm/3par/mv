@@ -370,7 +370,7 @@ if [ $LCM_STATE -ne 30 ] && [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] &&
     map_and_copy_to_lun "$SRC_HOST" "$WWN" "$LUN" "$NEW_WWN"
 
     # unexport new vv only if destination host is different
-    if [ "$SRC_HOST" -ne "$DST_HOST" ]; then
+    if [ "$SRC_HOST" != "$DST_HOST" ]; then
         unmap_lun "$SRC_HOST" "$NEW_WWN"
         unexport_vv "$NEW_NAME" "$SRC_HOST"
     fi
