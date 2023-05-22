@@ -164,7 +164,7 @@ function remove_lun {
       # wait for auto remove multipath
       EXISTS=1
       COUNTER=1
-      while [ "\${SLAVES}" ] && [ \$EXISTS -gt 0 ] && [ \$COUNTER -le 10 ]; do
+      while [ "\${SLAVES}" ] && [ \$EXISTS -gt 0 ] && [ \$COUNTER -le 30 ]; do
           sleep 1
           EXISTS=\$($SUDO $MULTIPATH -ll 3$WWN | head -c1 | wc -c)
           COUNTER=\$((\$COUNTER + 1))

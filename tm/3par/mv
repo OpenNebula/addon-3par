@@ -369,9 +369,11 @@ if [ $LCM_STATE -ne 30 ] && [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] &&
     LUN=$(export_vv "$NEW_NAME" "$SRC_HOST")
     map_and_copy_to_lun "$SRC_HOST" "$WWN" "$LUN" "$NEW_WWN"
 
-    # unexport new vv
-    unmap_lun "$SRC_HOST" "$NEW_WWN"
-    unexport_vv "$NEW_NAME" "$SRC_HOST"
+    # unexport new vv only if destination host is different
+    if [ "$SRC_HOST" -ne "$DST_HOST" ]; then
+        unmap_lun "$SRC_HOST" "$NEW_WWN"
+        unexport_vv "$NEW_NAME" "$SRC_HOST"
+    fi
 
     # src host is compute node, flush, unexport old vv and delete it
     if [ "$IS_SRC_HOST_3PAR" == "1" ]; then
