@@ -140,25 +140,52 @@ EOF
 }
 
 function remove_lun {
-    local WWN="$1"
-
+    local WWN
+    WWN="$1"
     cat <<EOF
       DEV="/dev/mapper/3$WWN"
+      SLAVES=\$($SUDO $MULTIPATH -r 3$WWN | grep -Eo 'sd[a-z]+')
 
-      if [ -a \$DEV ]; then
-        DM_HOLDER=\$($SUDO $DMSETUP ls -o blkdevname | grep -Po "(?<=3$WWN\s\()[^)]+")
-        DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
+      if [ -z "\${SLAVES}" ]; then
+          SLAVES=\$($SUDO $MULTIPATH -d 3$WWN | grep -Eo 'sd[a-z]+')
+      fi
 
-        $(multipath_flush "\$DEV")
+      $(multipath_flush "3$WWN")
 
-        unset device
-        for device in \${DM_SLAVE}
-        do
-            if [ -e /dev/\${device} ]; then
-                $SUDO $BLOCKDEV --flushbufs /dev/\${device}
-                echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
-            fi
-        done
+      unset device
+      for device in \${SLAVES}
+      do
+          if [ -e /dev/\${device} ]; then
+              $SUDO $BLOCKDEV --flushbufs /dev/\${device}
+              echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
+          fi
+      done
+
+      # wait for auto remove multipath
+      EXISTS=1
+      COUNTER=1
+      while [ "\${SLAVES}" ] && [ \$EXISTS -gt 0 ] && [ \$COUNTER -le 10 ]; do
+          sleep 1
+          EXISTS=\$($SUDO $MULTIPATH -ll 3$WWN | head -c1 | wc -c)
+          COUNTER=\$((\$COUNTER + 1))
+      done
+
+      if [[ \$EXISTS -gt 0 ]]; then
+          # Wait for releasing device
+          OPEN_COUNT=1
+          while [ \$OPEN_COUNT -gt 0 ]; do
+              sleep 1
+              OPEN_COUNT=\$($SUDO $DMSETUP info 3$WWN | grep -P "Open\scount:" | grep -oP "[0-9]+")
+          done
+
+          $(multipath_flush "3$WWN")
+      fi
+
+      # final check
+      EXISTS=\$($SUDO $MULTIPATH -r 3$WWN | head -c1 | wc -c)
+      if [[ \$EXISTS -gt 0 ]]; then
+          echo 'Mapping still exists'
+          exit 1
       fi
 EOF
 }
@@ -233,6 +260,7 @@ function map_and_copy_to_lun {
 EOF
 )
 
+    log "Map $WWN to $HOST"
     ssh_exec_and_log "$HOST" "$CMD" \
         "Error mapping $WWN to $HOST"
 
@@ -243,6 +271,7 @@ EOF
 EOF
 )
 
+    log "Copy $SRC_WWN to $WWN"
     ssh_exec_and_log "$HOST" "$CMD" \
          "Error copy from $SRC_WWN to $WWN"
 }
