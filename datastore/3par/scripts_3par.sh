@@ -174,22 +174,6 @@ function remove_lun {
 
           $(multipath_flush "3$WWN")
       fi
-
-      # check, wait and try to flush again
-      EXISTS=\$($SUDO $MULTIPATH -r 3$WWN | head -c1 | wc -c)
-      COUNTER=1
-      while [ "\${SLAVES}" ] && [ \$EXISTS -gt 0 ] && [ \$COUNTER -le 30 ]; do
-          sleep 1
-          $(multipath_flush "3$WWN")
-          EXISTS=\$($SUDO $MULTIPATH -ll 3$WWN | head -c1 | wc -c)
-          COUNTER=\$((\$COUNTER + 1))
-      done
-
-      # final check
-      if [[ \$EXISTS -gt 0 ]]; then
-          echo 'Mapping still exists'
-          exit 1
-      fi
 EOF
 }
 
