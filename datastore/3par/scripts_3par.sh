@@ -138,10 +138,10 @@ function remove_lun {
     WWN="$1"
     cat <<EOF
       DEV="/dev/mapper/3$WWN"
-      SLAVES=\$($SUDO $MULTIPATH -r 3$WWN | grep -Eo 'sd[a-z]+')
+      SLAVES=\$($SUDO $MULTIPATH -l 3$WWN | grep -Eo 'sd[a-z]+')
 
       if [ -z "\${SLAVES}" ]; then
-          SLAVES=\$($SUDO $MULTIPATH -d 3$WWN | grep -Eo 'sd[a-z]+')
+          SLAVES=\$($SUDO $MULTIPATH -r 3$WWN | grep -Eo 'sd[a-z]+')
       fi
 
       $(multipath_flush "3$WWN")
