@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -------------------------------------------------------------------------- #
-# Copyright 2019, FeldHost™ (feldhost.net)                                   #
+# Copyright 2022, FeldHost™ (feldhost.net)                                   #
 #                                                                            #
 # Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
 #                                                                            #
@@ -49,25 +49,41 @@ LCM_STATE=`lcm_state`
 
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onevm show -x $VMID| $XPATH /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
+done < <(onevm show -x $VMID| $XPATH \
+                    /VM/TEMPLATE/DISK[DISK_ID=0]/CLONE \
+                    /VM/TEMPLATE/DISK[DISK_ID=0]/DISK_TYPE \
+                    /VM/TEMPLATE/DISK[DISK_ID=0]/DATASTORE_ID \
+                    /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-SYS_DSID="${XPATH_ELEMENTS[0]}"
+CLONE="${XPATH_ELEMENTS[j++]}"
+DISK_TYPE="${XPATH_ELEMENTS[j++]}"
+IMG_DSID="${XPATH_ELEMENTS[j++]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 #-------------------------------------------------------------------------------
-# Get system ds information
+# Get ds information
 #-------------------------------------------------------------------------------
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                  /DATASTORE/TEMPLATE/API_ENDPOINT \
+                  /DATASTORE/TEMPLATE/IP \
+                  /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                  /DATASTORE/TEMPLATE/SEC_IP \
+                  /DATASTORE/TEMPLATE/REMOTE_COPY)
 
-NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 
 # Live snapshoting only if lcm state is HOTPLUG_SNAPSHOT
 if [ $LCM_STATE -eq 24 ]; then
@@ -83,5 +99,5 @@ if [ $LCM_STATE -eq 24 ]; then
     fi
 fi
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py createVVSetSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                                        -nt $NAMING_TYPE -vi $VMID -si $SNAP_ID
+python ${DRIVER_PATH}/../../datastore/3par/3par.py createVVSetSnapshot -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
+      -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -si $SNAP_ID -rc $REMOTE_COPY

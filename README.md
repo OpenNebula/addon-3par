@@ -23,9 +23,12 @@ More info:
 ## Compatibility
 
 This add-on is developed and tested with:
-- OpenNebula 5.6 and 3PAR OS 3.2.2.612 (MU4)+P51,P56,P59,P94,P98,P102,P106,P113,P118,P127  
-- OpenNebula 5.8 and 3PAR OS 3.3.1.410 (MU2)+P32,P34,P36,P37,P39,P40,P41,P42,P45,P48
+- OpenNebula 6.2 and 3PAR OS 3.3.1.648 (MU5)+P125,P126,P132,P135,P140,P146,P150,P151,P155,P156,P164,P170,P173
+- OpenNebula 5.10 and 3PAR OS 3.3.1.648 (MU5)+P125,P126,P132,P135,P140,P146,P150,P151
 - OpenNebula 5.8 and 3PAR OS 3.3.1.460 (MU3)+P50,P58,P61,P77,P78,P81
+- OpenNebula 5.8 and 3PAR OS 3.3.1.410 (MU2)+P32,P34,P36,P37,P39,P40,P41,P42,P45,P48
+- OpenNebula 5.6 and 3PAR OS 3.2.2.612 (MU4)+P51,P56,P59,P94,P98,P102,P106,P113,P118,P127
+
 
 ## Requirements
 
@@ -35,10 +38,9 @@ This add-on is developed and tested with:
 * Password-less SSH access from the front-end `oneadmin` user to the `node` instances.
 * 3PAR python package `python-3parclient` installed, WSAPI username, password and access to the 3PAR API network
 * libvirt-client package installed
-* xmlstarlet package installed - used in TM monitor script instead of OpenNebula native ruby script because it is slow
 
 ```bash
-yum install python-setuptools libvirt-client xmlstarlet
+yum install python-setuptools libvirt-client
 easy_install pip
 pip install python-3parclient
 ```
@@ -51,11 +53,16 @@ pip install python-3parclient
 * sg3_utils package installed
 * `/etc/multipath.conf` need to have set `user_friendly_names no`, because we use WWNs instead of `mpathx` aliasses
 * `/etc/sudoers.d/opennebula` - add `ONE_3PAR` cmd alias
+* `/etc/sudoers.d/opennebula-node-kvm` - add `ONE_3PAR` alias to the list
 
 ```
 nano /etc/sudoers.d/opennebula
 ...
-Cmnd_Alias ONE_3PAR = /sbin/multipath, /usr/sbin/multipathd, /sbin/dmsetup, /usr/sbin/blockdev, /usr/bin/tee /sys/block/*/device/delete, /usr/bin/rescan-scsi-bus.sh
+Cmnd_Alias ONE_3PAR = /sbin/multipath, /usr/sbin/multipathd, /sbin/dmsetup, /usr/sbin/blockdev, /usr/bin/tee /sys/block/*/device/delete, /usr/bin/rescan-scsi-bus.sh, /sbin/mkswap, /usr/sbin/mkfs
+...
+
+nano /etc/sudoers.d/opennebula-node-kmv
+...
 oneadmin ALL=(ALL) NOPASSWD: ONE_MISC, ..., ONE_3PAR, ...
 ...
 ```
@@ -72,23 +79,28 @@ Support standard OpenNebula datastore operations:
 * SYSTEM datastore
 * TRIM/discard in the VM when virtio-scsi driver is in use (require `DEV_PREFIX=sd` and `DISCARD=unmap`)
 * disk images can be full provisioned, thin provisioned, thin deduplicated, thin compressed or thin deduplicated and compressed RAW block devices
-* support different 3PAR CPGs as separate datastores
+* support different 3PAR CPGs as separate datastore
 * support for 3PAR Priority Optimization Policy (QoS)
 * live VM snapshots
 * live VM migrations
-* Volatile disks support (need patched KVM driver `attach_disk` script)
+* volatile disks support (need patched KVM driver `attach_disk` script)
+* support multiple storage systems
+* support Remote Copy with Peer Persistence
+* support Save As between storage systems
+* support migrations of VMs between storage systems
+* ds/clone operation support cloning image between storage systems
 * Sunstone integration - available via our enterprise repository
 
 ## Limitations
 
 1. Tested only with KVM hypervisor
 1. When SYSTEM datastore is in use the reported free/used/total space is the space on 3PAR CPG. (On the host filesystem there are mostly symlinks and small files that do not require much disk space)
-1. Tested/confirmed working on CentOS 7 (Frontend) and Oracle Linux 7, Oracle Linux 8, CentOS 7, CentOS 8, Fedora 29+ (Nodes).
+1. Tested/confirmed working on CentOS 7 and Oracle Linux 7 (Frontend), and Oracle Linux 7, Oracle Linux 8, CentOS 7, CentOS 8, Fedora 29+ (Nodes).
 
 ## ToDo
 
 1. QOS Priority per VM
-1. Configuration of API endpoint and auth in datastore template
+1. Configuration of API auth in datastore template
 
 ## Installation
 
@@ -172,6 +184,14 @@ DS_MAD_CONF = [
 ]
 ```
 
+* Edit `/etc/one/oned.conf` and update VM_MAD arguments for 3par
+
+```
+VM_MAD = [
+      ARGUMENTS = "-t 15 -r 0 kvm -l snapshotcreate=snapshot_create-3par,snapshotdelete=snapshot_delete-3par,snapshotrevert=snapshot_revert-3par",
+      ...
+```
+
 * Enable live disk snapshots support for 3PAR by adding `kvm-3par` to `LIVE_DISK_SNAPSHOTS` variable in `/etc/one/vmm_exec/vmm_execrc`
 ```
 LIVE_DISK_SNAPSHOTS="kvm-qcow2 kvm-ceph kvm-3par"
@@ -210,12 +230,18 @@ Some configuration attributes must be set to enable a datastore as 3PAR enabled 
 * **DS_MAD**: [mandatory] The DS driver for the datastore. String, use value `3par`
 * **TM_MAD**: [mandatory] Transfer driver for the datastore. String, use value `3par`
 * **DISK_TYPE**: [mandatory for IMAGE datastores] Type for the VM disks using images from this datastore. String, use value `block`
+* **API_ENDPOINT**: 3PAR WSAPI Endpoint. String
+* **IP**: 3PAR IP address for SSH authentication options for the SSH based calls. String
 * **CPG**: [mandatory] Name of Common Provisioning Group created on 3PAR. String
 * **THIN**: Use thin volumes `tpvv` or no. By default enabled. `YES|NO`
 * **DEDUP**: Use deduplicated thin volumes `tdvv` or no. By default disabled. `YES|NO`
 * **COMPRESSION**: Use compressed thin volumes or no. By default disabled. `YES|NO`
 * **NAMING_TYPE**: Part of volume name defining environment. By default `dev`. String (1)
-* **BRIDGE_LIST**: Nodes to use for image datastore operations. String (2)
+* **BRIDGE_LIST**: [mandatory for IMAGE datastores] Nodes to use for image datastore operations. String (2)
+* **REMOTE_COPY**: Enable Remote Copy. `YES|NO`
+* **SEC_API_ENDPOINT**: [mandatory when Remote Copy] Secondary 3PAR WSAPI Endpoint. String
+* **SEC_IP**: [mandatory when Remote Copy] Secondary 3PAR IP address. String
+* **SEC_CPG**: [mandatory when Remote Copy] Name of Common Provisioning Group on Secondary 3PAR. String
 * **QOS_ENABLE**: Enable QoS. `YES|NO` (3)
 * **QOS_PRIORITY**: QoS Priority. `HIGH|NORMAL|LOW` (4)
 * **QOS_MAX\_IOPS**: QoS Max IOPS. Int (5)
@@ -326,4 +352,4 @@ $ onedatastore list
 
 ## 3PAR best practices guide incl. naming conventions
 
-Please follow the [best practices guide](https://h20195.www2.hpe.com/v2/GetPDF.aspx/4AA4-4524ENW.pdf).
+Please follow the [best practices guide](https://support.hpe.com/hpesc/public/docDisplay?docLocale=en_US&docId=a00116000en_us).

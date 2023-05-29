@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -------------------------------------------------------------------------- #
-# Copyright 2019, FeldHost™ (feldhost.net)                                   #
+# Copyright 2022, FeldHost™ (feldhost.net)                                   #
 #                                                                            #
 # Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
 #                                                                            #
@@ -44,24 +44,53 @@ ID=$2
 
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb -b $DRV_ACTION"
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
-                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/NAMING_TYPE \
+done < <($XPATH     /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/API_ENDPOINT \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/IP \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/SEC_IP \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/REMOTE_COPY \
+                    /DS_DRIVER_ACTION_DATA/DATASTORE/TEMPLATE/CPG \
                     /DS_DRIVER_ACTION_DATA/MONITOR_VM_DISKS)
 
-CPG="${XPATH_ELEMENTS[0]:-$CPG}"
-NAMING_TYPE="${XPATH_ELEMENTS[1]:-$NAMING_TYPE}"
-MONITOR_VM_DISKS="${XPATH_ELEMENTS[2]}"
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
+MONITOR_VM_DISKS="${XPATH_ELEMENTS[j++]}"
+
+if [ -d "${0%/*}/../../im/kvm-probes.d/vm/monitor" ]; then
+  LEGACY_MONITORING=0
+else
+    LEGACY_MONITORING=1
+fi
 
 # ------------ Compute datastore usage -------------
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                  -p $PASSWORD -c $CPG -nt $NAMING_TYPE -di $ID -d $MONITOR_VM_DISKS
+MONITOR_DATA=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorCPG -a $API_ENDPOINT -i $IP -s $SECURE \
+                                                                                -u $USERNAME -p $PASSWORD -c $CPG)
+MONITOR_STATUS=$?
 
-if [ $? -ne 0 ]; then
-  error_message "Error monitoring CPG"
-  exit 1
+if [ $MONITOR_VM_DISKS -eq 1 ]; then
+  MONITOR_DATA_VMS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py monitorVmDisks -a $API_ENDPOINT -i $IP \
+                                  -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -di $ID -lf $LEGACY_MONITORING)
+  MONITOR_VMS_STATUS=$?
 fi
+
+echo $MONITOR_DATA
+
+if [ $MONITOR_VM_DISKS -eq 1 ]; then
+  if [ $LEGACY_MONITORING -eq 0 ]; then
+      send_to_monitor MONITOR_VM $MONITOR_VMS_STATUS -1 "$MONITOR_DATA_VMS"
+  else
+      echo $MONITOR_DATA_VMS
+      exit $MONITOR_VMS_STATUS
+  fi
+fi
+
+exit $MONITOR_STATUS

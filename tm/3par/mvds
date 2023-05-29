@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -------------------------------------------------------------------------- #
-# Copyright 2019, FeldHost™ (feldhost.net)                                   #
+# Copyright 2022, FeldHost™ (feldhost.net)                                   #
 #                                                                            #
 # Portions copyright 2014-2016, Laurent Grawet <dev@grawet.be>               #
 # Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
@@ -72,21 +72,41 @@ fi
 # image already unmapped by undeploy "mv" script
 [ "$SRC_HOST_3PAR" != "1" ] && exit 0
 
-#-------------------------------------------------------------------------------
-# Get target ds information
-#-------------------------------------------------------------------------------
-
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+
+#-------------------------------------------------------------------------------
+# Get image information
+#-------------------------------------------------------------------------------
 
 unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $DSID | $XPATH \
-                        /DATASTORE/TEMPLATE/NAMING_TYPE \
+done < <(onevm show -x $VMID| $XPATH /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
+
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
+
+#-------------------------------------------------------------------------------
+# Get system ds information
+#-------------------------------------------------------------------------------
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                        /DATASTORE/TEMPLATE/API_ENDPOINT \
+                        /DATASTORE/TEMPLATE/IP \
+                        /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                        /DATASTORE/TEMPLATE/SEC_IP \
+                        /DATASTORE/TEMPLATE/REMOTE_COPY \
                         /DATASTORE/TEMPLATE/QOS_ENABLE)
 
-NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 
 #-------------------------------------------------------------------------------
@@ -107,22 +127,32 @@ ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
 python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                         -n $NAME -hs $SRC_HOST
 
-if [ "$QOS_ENABLE" == "YES" ]; then
-    log "Delete QoS Policy"
-    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteQosPolicy -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                        -nt $NAMING_TYPE -n $NAME -vi $VMID)
+if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+    python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
+                  -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $SRC_HOST -rc $REMOTE_COPY
 
     if [ $? -ne 0 ]; then
-      error_message "$QOS"
+      error_message "Error unexporting remote VV"
       exit 1
     fi
 fi
 
-log "Remove disk from VM VV Set"
-VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                    -nt $NAMING_TYPE -n $NAME -vi $VMID)
+if [ "$REMOTE_COPY" == "YES" ]; then
+    log "Remove disk from Remote Copy group"
+    RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromRCGroup -a $API_ENDPOINT -i $IP \
+        -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
 
-if [ $? -ne 0 ]; then
-  error_message "$VVSET"
-  exit 1
+    if [ $? -ne 0 ]; then
+      error_message "$RCG"
+      exit 1
+    fi
+else
+    log "Remove disk from VM VV Set"
+    VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromVVSet -a $API_ENDPOINT -i $IP -s $SECURE \
+                        -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
+
+    if [ $? -ne 0 ]; then
+      error_message "$VVSET"
+      exit 1
+    fi
 fi

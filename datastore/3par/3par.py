@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------- #
-# Copyright 2019, FeldHost™ (feldhost.net)                                    #
+# Copyright 2022, FeldHost™ (feldhost.net)                                   #
 #                                                                            #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may    #
 # not use this file except in compliance with the License. You may obtain    #
@@ -34,13 +34,16 @@ def boolarg(string):
 # Common Parser
 commonParser = argparse.ArgumentParser(add_help=False)
 commonParser.add_argument('-a', '--api', help='WSAPI Endpoint', required=True)
+commonParser.add_argument('-sapi', '--sapi', help='Secondary WSAPI Endpoint', required=False)
 commonParser.add_argument('-s', '--secure',
-                          help='WSAPI SSL certification verification is disabled. In order to override this,'
+                          help='WSAPI SSL certification verification is disabled. In order to override this, '
                                'set this to 1 or to /path/to/cert.crt',
                           type=boolarg,
                           default=False)
 commonParser.add_argument('-i', '--ip', help='3PAR IP for SSH authentication options for the SSH based calls',
                           required=True)
+commonParser.add_argument('-sip', '--sip', help='Secondary 3PAR IP for SSH authentication options for the SSH based calls',
+                          required=False)
 commonParser.add_argument('-u', '--username', help='3PAR username', required=True)
 commonParser.add_argument('-p', '--password', help='3PAR password', required=True)
 commonParser.add_argument('-sd', '--softDelete', help='Soft-delete volumes/snapshots', type=boolarg, default=True)
@@ -48,9 +51,17 @@ commonParser.add_argument('-sd', '--softDelete', help='Soft-delete volumes/snaps
 # MonitorCPG task parser
 monitorCPGParser = subparsers.add_parser('monitorCPG', parents=[commonParser], help='Get CPG Available Space')
 monitorCPGParser.add_argument('-c', '--cpg', help='CPG Name', required=True)
-monitorCPGParser.add_argument('-d', '--disks', help='Return disks info', type=boolarg, default=False)
-monitorCPGParser.add_argument('-di', '--datastoreId', help='DS ID', type=int)
-monitorCPGParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
+
+# MonitorVmDisks task parser
+monitorVmDisksParser = subparsers.add_parser('monitorVmDisks', parents=[commonParser], help='Get VM disk stats')
+monitorVmDisksParser.add_argument('-di', '--datastoreId', help='DS ID', type=int)
+monitorVmDisksParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
+monitorVmDisksParser.add_argument('-lf', '--legacyFormat', help='Legacy format to support OpenNebula <5.12', type=boolarg, default=False)
+
+# EnableRCOnImageDS task parser
+enableRCOnImageDSParser = subparsers.add_parser('enableRCOnImageDS', parents=[commonParser], help='Enable RC on image DS. Create RC group and add to it all non-persistent images.')
+enableRCOnImageDSParser.add_argument('-di', '--datastoreId', help='DS ID', type=int, required=True)
+enableRCOnImageDSParser.add_argument('-rcm', '--remoteCopyMode', help='Remote Copy mode', choices=['SYNC', 'PERIODIC', 'ASYNC'], required=True)
 
 # CreateVV task parser
 createVVParser = subparsers.add_parser('createVV', parents=[commonParser], help='Create new VV')
@@ -67,6 +78,7 @@ createVVParser.add_argument('-co', '--comment', help='Comment')
 deleteVVParser = subparsers.add_parser('deleteVV', parents=[commonParser], help='Delete VV')
 deleteVVParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
 deleteVVParser.add_argument('-id', '--id', help='ID of VV to use in VV name', required=True)
+deleteVVParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # CloneVV task parser
 cloneVVParser = subparsers.add_parser('cloneVV', parents=[commonParser], help='Clone specific VV to new one')
@@ -89,6 +101,7 @@ copyVVParser = subparsers.add_parser('copyVV', parents=[commonParser], help='Cop
 copyVVParser.add_argument('-nt', '--namingType', help='Source: Best practices Naming conventions <TYPE> part',
                           default='dev')
 copyVVParser.add_argument('-id', '--id', help='ID of source VV or VM disk', required=True)
+copyVVParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
 copyVVParser.add_argument('-d', '--destName', help='Name of the destination VV', required=True)
 copyVVParser.add_argument('-vi', '--vmId', help='Id of source VV VM')
 copyVVParser.add_argument('-vc', '--vmClone', help='Is VM clone?', type=boolarg, default=False)
@@ -98,6 +111,9 @@ copyVVParser.add_argument('-c', '--cpg', help='Destination VV CPG Name', require
 growVVParser = subparsers.add_parser('growVV', parents=[commonParser], help='Grow VV by specific size')
 growVVParser.add_argument('-n', '--name', help='Name of VV to grow', required=True)
 growVVParser.add_argument('-gb', '--growBy', help='Grow by in MiB', type=int, required=True)
+growVVParser.add_argument('-vi', '--vmId', help='Id of VM')
+growVVParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part', default='dev')
+growVVParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # getVVSize task parser
 getVVSizeParser = subparsers.add_parser('getVVSize', parents=[commonParser], help='Get size of VV')
@@ -109,11 +125,13 @@ getVVSizeParser.add_argument('-t', '--type', help='Type of size to get', choices
 exportVVParser = subparsers.add_parser('exportVV', parents=[commonParser], help='Export VV to host')
 exportVVParser.add_argument('-n', '--name', help='Name of VV to export', required=True)
 exportVVParser.add_argument('-hs', '--host', help='Name of host to export to', required=True)
+exportVVParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # UnexportVV task parser
 unexportVVParser = subparsers.add_parser('unexportVV', parents=[commonParser], help='Unexport VV from host')
 unexportVVParser.add_argument('-n', '--name', help='Name of VV to unexport', required=True)
 unexportVVParser.add_argument('-hs', '--host', help='Name of host to unexport from', required=True)
+unexportVVParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # CreateVmClone task parser
 createVmCloneParser = subparsers.add_parser('createVmClone', parents=[commonParser],
@@ -129,6 +147,7 @@ createVmCloneParser.add_argument('-tpvv', '--tpvv', help='Thin provision', type=
 createVmCloneParser.add_argument('-tdvv', '--tdvv', help='Thin provision with deduplication', type=boolarg, default=False)
 createVmCloneParser.add_argument('-compr', '--compression', help='Thin provision compressed volume', type=boolarg, default=False)
 createVmCloneParser.add_argument('-co', '--comment', help='Comment')
+createVmCloneParser.add_argument('-e', '--empty', help='Just create empty volume - not copy from src', type=boolarg, default=False)
 
 # CreateVmVV task parser
 createVmVVParser = subparsers.add_parser('createVmVV', parents=[commonParser], help='Create new VM VV')
@@ -162,6 +181,7 @@ createVVSetSnapshotParser.add_argument('-nt', '--namingType', help='Source: Best
                                   default='dev')
 createVVSetSnapshotParser.add_argument('-vi', '--vmId', help='Id of VM')
 createVVSetSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+createVVSetSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # DeleteVVSetSnapshot task parser
 deleteVVSetSnapshotParser = subparsers.add_parser('deleteVVSetSnapshot', parents=[commonParser], help='Delete volume set snapshot')
@@ -169,6 +189,7 @@ deleteVVSetSnapshotParser.add_argument('-nt', '--namingType', help='Source: Best
                                   default='dev')
 deleteVVSetSnapshotParser.add_argument('-vi', '--vmId', help='Id of VM')
 deleteVVSetSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+deleteVVSetSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # CreateSnapshot task parser
 createSnapshotParser = subparsers.add_parser('createSnapshot', parents=[commonParser], help='Create snapshot of VV')
@@ -178,6 +199,7 @@ createSnapshotParser.add_argument('-id', '--id', help='ID of source VV or VM dis
 createSnapshotParser.add_argument('-vi', '--vmId', help='Id of VM')
 createSnapshotParser.add_argument('-vc', '--vmClone', help='Is VM clone VV?', type=boolarg, default=False)
 createSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+createSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # RevertSnapshot task parser
 revertSnapshotParser = subparsers.add_parser('revertSnapshot', parents=[commonParser],
@@ -190,6 +212,9 @@ revertSnapshotParser.add_argument('-vc', '--vmClone', help='Is VM clone VV?', ty
 revertSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
 revertSnapshotParser.add_argument('-o', '--online', help='Revert snapshot while VV is online (exported)', type=boolarg,
                                   default=False)
+revertSnapshotParser.add_argument('-off', '--offline', help='Revert snapshot while VV is not attached to VM', type=boolarg,
+                                  default=False)
+revertSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # DeleteSnapshot task parser
 deleteSnapshotParser = subparsers.add_parser('deleteSnapshot', parents=[commonParser], help='Delete snapshot of VV')
@@ -199,12 +224,14 @@ deleteSnapshotParser.add_argument('-id', '--id', help='ID of source VV or VM dis
 deleteSnapshotParser.add_argument('-vi', '--vmId', help='Id of VM')
 deleteSnapshotParser.add_argument('-vc', '--vmClone', help='Is VM clone VV?', type=boolarg, default=False)
 deleteSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+deleteSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # FlattenSnapshot task parser
 flattenSnapshotParser = subparsers.add_parser('flattenSnapshot', parents=[commonParser],
                                               help='Promote selected snapshot and delete all snapshots of source VV')
 flattenSnapshotParser.add_argument('-sn', '--srcName', help='Name of source VV to which snapshot belongs', required=True)
 flattenSnapshotParser.add_argument('-si', '--snapId', help='ID of snapshot', required=True)
+flattenSnapshotParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
 # HostExists task parser
 hostExistsParser = subparsers.add_parser('hostExists', parents=[commonParser],
@@ -234,7 +261,6 @@ createQosPolicyParser = subparsers.add_parser('createQosPolicy', parents=[common
 createQosPolicyParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
                                    default='dev')
 createQosPolicyParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
-createQosPolicyParser.add_argument('-n', '--name', help='Name of VV', required=True)
 createQosPolicyParser.add_argument('-qp', '--qosPriority', help='QoS Priority', choices=['LOW', 'NORMAL', 'HIGH'],
                                         required=True)
 createQosPolicyParser.add_argument('-qxi', '--qosMaxIops', help='QoS Max IOPS', type=int, required=True)
@@ -242,14 +268,36 @@ createQosPolicyParser.add_argument('-qmi', '--qosMinIops', help='QoS Min IOPS', 
 createQosPolicyParser.add_argument('-qxb', '--qosMaxBw', help='QoS Max BW in kB/s', type=int, required=True)
 createQosPolicyParser.add_argument('-qmb', '--qosMinBw', help='QoS Min BW in kB/s', type=int, required=True)
 createQosPolicyParser.add_argument('-ql', '--qosLatency', help='QoS Latency in ms', type=int, required=True)
+createQosPolicyParser.add_argument('-rc', '--remoteCopy', help='Enable Remote Copy', type=boolarg, default=False)
 
-# DeleteQosPolicy task parser
-deleteQosPolicyParser = subparsers.add_parser('deleteQosPolicy', parents=[commonParser],
-                                              help='Delete QoS policy from VM VV set')
-deleteQosPolicyParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
+# DisableQosPolicyParser task parser
+disableQosPolicyParser = subparsers.add_parser('disableQosPolicy', parents=[commonParser],
+                                              help='Disable QoS policy on VM VV set')
+disableQosPolicyParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
                                    default='dev')
-deleteQosPolicyParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
-deleteQosPolicyParser.add_argument('-n', '--name', help='Name of VV', required=True)
+disableQosPolicyParser.add_argument('-vi', '--vmId', help='Id of VM', required=True)
+
+# addVolumeToRCGroup task parser
+addVolumeToRCGroupParser = subparsers.add_parser('addVolumeToRCGroup', parents=[commonParser],
+                                              help='Add volume to Remote Copy group. If RC group does not exists, it creates new one')
+addVolumeToRCGroupParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
+                                   default='dev')
+addVolumeToRCGroupParser.add_argument('-vi', '--vmId', help='Id of VM')
+addVolumeToRCGroupParser.add_argument('-n', '--name', help='Name of VV', required=True)
+addVolumeToRCGroupParser.add_argument('-rcgn', '--remoteCopyGroupName', help='Name of RC Group', default=None)
+addVolumeToRCGroupParser.add_argument('-rcm', '--remoteCopyMode', help='Remote Copy mode', choices=['SYNC', 'PERIODIC', 'ASYNC'], required=True)
+addVolumeToRCGroupParser.add_argument('-rcha', '--remoteCopyHA', help='Enable High-Availability mode', type=boolarg, default=True)
+addVolumeToRCGroupParser.add_argument('-c', '--cpg', help='Local CPG Name', required=True)
+addVolumeToRCGroupParser.add_argument('-sc', '--secCpg', help='Remote CPG Name', required=True)
+
+# DeleteVolumeFromRCGroup task parser
+deleteVolumeFromRCGroupParser = subparsers.add_parser('deleteVolumeFromRCGroup', parents=[commonParser],
+                                        help='Delete volume from Remote Copy group. If it is last member, it stop RC group')
+deleteVolumeFromRCGroupParser.add_argument('-nt', '--namingType', help='Best practices Naming conventions <TYPE> part',
+                                   default='dev')
+deleteVolumeFromRCGroupParser.add_argument('-vi', '--vmId', help='Id of VM')
+deleteVolumeFromRCGroupParser.add_argument('-n', '--name', help='Name of VV', required=True)
+deleteVolumeFromRCGroupParser.add_argument('-rcgn', '--remoteCopyGroupName', help='Name of RC Group', default=None)
 
 # ------------
 # Define tasks
@@ -263,54 +311,113 @@ def monitorCPG(cl, args):
     free = cpgAvailableSpace.get('usableFreeMiB')
     total = used + free
 
-    print 'USED_MB={used}'.format(used=used)
-    print 'TOTAL_MB={total}'.format(total=total)
-    print 'FREE_MB={free}'.format(free=free)
+    print('USED_MB={used}'.format(used=used))
+    print('TOTAL_MB={total}'.format(total=total))
+    print('FREE_MB={free}'.format(free=free))
 
-    if args.disks == True:
-      import subprocess
-      import xmltodict
-      
-      vvs = cl.getVolumes()
-      diskSizes = {}
 
-      for vv in vvs.get('members'):
-        diskSizes[vv.get('name')] = vv.get('userSpace').get('usedMiB')
-      
-      vmsXml = subprocess.check_output('onevm list --extended -x', shell=True)
-      vms = xmltodict.parse(vmsXml)
-      for vm in vms.get('VM_POOL')['VM']:
-        if args.datastoreId != int(vm.get('HISTORY_RECORDS')['HISTORY'].get('DS_ID')):
-          continue
-        
+def monitorVmDisks(cl, args):
+    import subprocess
+    import xmltodict
+    from base64 import b64encode
+
+    vvs = cl.getVolumes()
+    diskSizes = {}
+
+    for vv in vvs.get('members'):
+      diskSizes[vv.get('name')] = vv.get('userSpace').get('usedMiB')
+
+    vmsXml = subprocess.check_output('onevm list --extended -x', shell=True)
+    vms = xmltodict.parse(vmsXml, force_list=('VM',))
+    if vms['VM_POOL'] is None:
+      return
+    for vm in vms.get('VM_POOL')['VM']:
+      if vm.get('HISTORY_RECORDS') is None or args.datastoreId != int(vm.get('HISTORY_RECORDS')['HISTORY'].get('DS_ID')):
+        continue
+
+      if args.legacyFormat:
         result = 'VM=[ID={vmId},POLL="'.format(vmId=vm.get('ID'))
-        
-        disks = vm.get('TEMPLATE').get('DISK')
-        if isinstance(disks,dict):
-          disks = [disks]
+      else:
+        result = 'VM=[ID={vmId},MONITOR="'.format(vmId=vm.get('ID'))
 
-        diskResult = []
-        for disk in disks:
-          if disk.get('CLONE') == 'YES' or disk.get('SOURCE') is None or disk.get('SOURCE') == '':
-            name = '{namingType}.one.vm.{vmId}.{diskId}.vv'.format(namingType=args.namingType, vmId=vm.get('ID'), diskId=disk.get('DISK_ID'))
-          else:
-            source = disk.get('SOURCE').split(':')
-            name = source[0]
+      disks = vm.get('TEMPLATE').get('DISK')
+      if isinstance(disks,dict):
+        disks = [disks]
+
+      diskResult = []
+      for disk in disks:
+        if disk.get('CLONE') == 'YES' or disk.get('SOURCE') is None or disk.get('SOURCE') == '':
+          name = '{namingType}.one.vm.{vmId}.{diskId}.vv'.format(namingType=args.namingType, vmId=vm.get('ID'), diskId=disk.get('DISK_ID'))
+        else:
+          source = disk.get('SOURCE').split(':')
+          name = source[0]
+
+        if name in diskSizes:
           diskResult.append('DISK_SIZE=[ID={diskId},SIZE={diskSize}]'.format(diskId=disk.get('DISK_ID'), diskSize=diskSizes[name]))
-       
-        print result + ' '.join(diskResult) + '"]'
+
+      if args.legacyFormat:
+          print(result + ' '.join(diskResult) + '"]')
+      else:
+          print(result + b64encode(' '.join(diskResult).encode('ascii')).decode('ascii') + '"]')
+
+
+def enableRCOnImageDS(cl, args):
+    import subprocess
+    import xmltodict
+
+    # fetch image pool
+    imagesXml = subprocess.check_output('oneimage list -x'.format(id=args.datastoreId), shell=True)
+    images = xmltodict.parse(imagesXml, force_list=('IMAGE',))
+
+    if images['IMAGE_POOL'] is None:
+        return
+
+    # fetch ds info
+    dsXml = subprocess.check_output('onedatastore show {id} -x'.format(id=args.datastoreId), shell=True)
+    ds = xmltodict.parse(dsXml)
+    dsTemplate = ds.get('DATASTORE').get('TEMPLATE')
+
+    # check if RC is enabled
+    if dsTemplate.get('REMOTE_COPY') != 'YES':
+        print('Remote Copy is not enabled for this datastore')
+        exit(1)
+
+    # prepare RC params
+    args.remoteCopyGroupName = '{naming_type}.one.ds.{ds_id}'.format(naming_type=dsTemplate.get('NAMING_TYPE'), ds_id=args.datastoreId)
+    args.remoteCopyHA = False
+    args.cpg = dsTemplate.get('CPG')
+    args.secCpg = dsTemplate.get('SEC_CPG')
+
+    # iterate over images
+    for image in images.get('IMAGE_POOL')['IMAGE']:
+        # filter out images by datastore ID and we copy only non-persistent
+        if args.datastoreId != int(image.get('DATASTORE_ID')) or int(image.get('PERSISTENT')) == 1:
+            continue
+
+        # asign image name and add to remote copy group
+        source = image.get('SOURCE').split(':')
+        args.name = source[0]
+        print('Adding image {name} ({vv}) to RCG {rcgName}'.format(name=image.get('NAME'), vv=args.name,
+                                                                   rcgName=args.remoteCopyGroupName))
+        addVolumeToRCGroup(cl, args)
+
 
 def createVV(cl, args):
     name = createVVName(args.namingType, args.id)
 
     vv = createVVWithName(cl, name, args)
     wwn = vv.get('wwn').lower()
-    print '{name}:{wwn}'.format(name=name, wwn=wwn)
+    print('{name}:{wwn}'.format(name=name, wwn=wwn))
+
 
 def deleteVV(cl, args):
-    name = createVVName(args.namingType, args.id)
+    vvName = createVVName(args.namingType, args.id)
+    deleteVVWithName(cl, vvName)
 
-    deleteVVWithName(cl, name)
+    if args.remoteCopy:
+        vvName = '{name}'.format(name=vvName)
+        cl = getRemoteSystemClient(args)
+        deleteVVWithName(cl, vvName)
 
 def cloneVV(cl, args):
     srcName = createVVName(args.srcNamingType, args.srcId)
@@ -324,33 +431,57 @@ def cloneVV(cl, args):
     cl.copyVolume(srcName, destName, args.cpg, optional)
 
     wwn = vv.get('wwn').lower()
-    print '{name}:{wwn}'.format(name=destName, wwn=wwn)
+    print('{name}:{wwn}'.format(name=destName, wwn=wwn))
+
 
 def copyVV(cl, args):
+  snapId = args.snapId
+
   if args.vmClone == True:
     srcName = createVmCloneName(args.namingType, args.id, args.vmId)
   else:
     srcName = createVVName(args.namingType, args.id)
 
-  optional = {'skipZero': True}
+  if snapId != "-1":
+      srcName = createSnapshotName(srcName, snapId)
+
+  optional = {'priority': 1, 'skipZero': True}
 
   cl.copyVolume(srcName, args.destName, args.cpg, optional)
 
 def growVV(cl, args):
-    cl.growVolume(args.name, args.growBy)
+    rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+
+    if args.remoteCopy:
+        cl.stopRemoteCopy(rcgName)
+
+    try:
+        cl.growVolume(args.name, args.growBy)
+    except exceptions.ClientException:
+        if args.remoteCopy:
+            cl.startRemoteCopy(rcgName)
+
+    if args.remoteCopy:
+        cl.startRemoteCopy(rcgName)
 
 def getVVSize(cl, args):
     vv = cl.getVolume(args.name)
 
     if args.type == 'USED':
-        print vv.get('userSpace').get('usedMiB')
+        print(vv.get('userSpace').get('usedMiB'))
     elif args.type == 'SNAP':
-        print vv.get('snapshotSpace').get('usedMiB')
+        print(vv.get('snapshotSpace').get('usedMiB'))
     elif args.type == 'VSIZE':
-        print vv.get('sizeMiB')
+        print(vv.get('sizeMiB'))
+
 
 def exportVV(cl, args):
-    name = args.name
+    if args.remoteCopy:
+        name = '{name}'.format(name=args.name)
+        cl = getRemoteSystemClient(args)
+    else:
+        name = args.name
+
     host = args.host
 
     # check if VLUN already exists
@@ -358,7 +489,7 @@ def exportVV(cl, args):
         vluns = cl.getHostVLUNs(host)
         for vlun in vluns:
             if vlun.get('volumeName') == name:
-                print vlun.get('lun')
+                print(vlun.get('lun'))
                 return
     except exceptions.HTTPNotFound:
         pass
@@ -368,33 +499,54 @@ def exportVV(cl, args):
     while not done:
         try:
             location = cl.createVLUN(name, None, host, None, None, None, True)
-            print location.split(',')[1]
+            print (location.split(',')[1])
             return
         except exceptions.HTTPConflict:
             time.sleep(5)
 
 def unexportVV(cl, args):
-    name = args.name
+    if args.remoteCopy:
+        name = '{name}'.format(name=args.name)
+        cl = getRemoteSystemClient(args)
+    else:
+        name = args.name
+
     host = args.host
 
     # check if VLUN exists
     found = False
-    vluns = cl.getHostVLUNs(host)
-    for vlun in vluns:
-        if vlun.get('volumeName') == name:
-            found = True
-            break
+    try:
+        vluns = cl.getHostVLUNs(host)
+        for vlun in vluns:
+            if vlun.get('volumeName') == name:
+                found = True
+                break
+    except exceptions.HTTPNotFound:
+        pass
 
-    if found == False:
-        return
+    if found:
+        cl.deleteVLUN(name, vlun.get('lun'), host)
 
-    cl.deleteVLUN(name, vlun.get('lun'), host)
 
 def createVmClone(cl, args):
     destName = createVmCloneName(args.namingType, args.id, args.vmId)
 
-    # create new VV
-    vv = createVVWithName(cl, destName, args)
+    # check if destination VV exist
+    try:
+        vv = cl.getVolume(destName)
+        if 'expirationTimeSec' in vv:
+            cl.modifyVolume(destName, {'rmExpTime': True})
+        else:
+            print("Destination volume already exists and it is not mark as deleted!")
+            exit(1)
+    except exceptions.HTTPNotFound:
+        # create new VV
+        vv = createVVWithName(cl, destName, args)
+
+    if args.empty:
+        wwn = vv.get('wwn').lower()
+        print('{name}:{wwn}'.format(name=destName, wwn=wwn))
+        exit(0)
 
     # define optional for speed up process
     optional = {'priority': 1, 'skipZero': True}
@@ -411,14 +563,15 @@ def createVmClone(cl, args):
             if i > 5:
                 cl.deleteVolume(destName)
                 cl.logout()
-                print ex
+                print(ex)
                 exit(1)
             i += 1
             time.sleep(1)
 
     # print info
     wwn = vv.get('wwn').lower()
-    print '{name}:{wwn}'.format(name=destName, wwn=wwn)
+    print('{name}:{wwn}'.format(name=destName, wwn=wwn))
+
 
 def createVmVV(cl, args):
     name = createVmCloneName(args.namingType, args.id, args.vmId)
@@ -428,13 +581,15 @@ def createVmVV(cl, args):
 
     # print info
     wwn = vv.get('wwn').lower()
-    print '{name}:{wwn}'.format(name=name, wwn=wwn)
+    print('{name}:{wwn}'.format(name=name, wwn=wwn))
+
 
 def getVmClone(cl, args):
     name = createVmCloneName(args.namingType, args.id, args.vmId)
     vv = cl.getVolume(name)
     wwn = vv.get('wwn').lower()
-    print '{name}:{wwn}'.format(name=name, wwn=wwn)
+    print('{name}:{wwn}'.format(name=name, wwn=wwn))
+
 
 def deleteVmClone(cl, args):
     name = createVmCloneName(args.namingType, args.id, args.vmId)
@@ -444,25 +599,32 @@ def deleteVmClone(cl, args):
 
 def createVVSetSnapshot(cl, args):
     snapId = 's{snapId}'.format(snapId=args.snapId)
-    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+
+    if args.remoteCopy:
+        vvsetName = 'RCP_{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    else:
+        vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+        # limit length of vvset name to 27 chars
+        # it is limit of 3par system
+        vvsetName = vvsetName[0:27]
 
     # get volume set info
     try:
         vvset = cl.getVolumeSet(vvsetName)
         members = vvset.get('setmembers')
     except exceptions.HTTPNotFound:
-        print 'Volume set does not exits, exiting...'
+        print('Volume set does not exits, exiting...')
         return
 
     # no members in volume set? unexpected
     if not members or not len(members) > 0:
-        print 'Volume set has no members, exiting...'
+        print('Volume set has no members, exiting...')
         return
 
     # check for soft deleted snapshot
     if args.softDelete:
         for member in members:
-            snapName, metaKey = createSnapshotNameAndMetaKey(member, snapId)
+            snapName = createSnapshotName(member, snapId)
             try:
                 cl.getVolume(snapName)
                 # snap exists, so delete it
@@ -470,62 +632,76 @@ def createVVSetSnapshot(cl, args):
             except exceptions.HTTPNotFound:
                 pass
 
+            if args.remoteCopy:
+                scl = getRemoteSystemClient(args)
+                try:
+                    scl.getVolume(snapName)
+                    # snap exists, so delete it
+                    scl.deleteVolume(snapName)
+                except exceptions.HTTPNotFound:
+                    pass
+
     # prepare snapshot vv name pattern
     name = '@vvname@.{snapId}'.format(snapId=snapId)
 
     # create snapshots
-    cl.createSnapshotOfVolumeSet(name, vvsetName, {'readOnly': True})
+    if args.remoteCopy:
+        rcgName = 'rcgroup:{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+        cmd = ['createsv', '-rcopy', '-ro', name, rcgName]
+        cl._run(cmd)
+    else:
+        cl.createSnapshotOfVolumeSet(name, vvsetName, {'readOnly': True})
 
-    # create and add snapshot metadata to all members
-    for member in members:
-        snapName, metaKey = createSnapshotNameAndMetaKey(member, snapId)
-        cl.setVolumeMetaData(member, metaKey, snapName)
-
-    print args.snapId
+    print(args.snapId)
 
 
 def deleteVVSetSnapshot(cl, args):
     snapId = 's{snapId}'.format(snapId=args.snapId)
-    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+    scl = None
+
+    if args.remoteCopy:
+        scl = getRemoteSystemClient(args)
+        vvsetName = 'RCP_{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    else:
+        vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+        # limit length of vvset name to 27 chars
+        # it is limit of 3par system
+        vvsetName = vvsetName[0:27]
 
     # get volume set info
     try:
         vvset = cl.getVolumeSet(vvsetName)
         members = vvset.get('setmembers')
     except exceptions.HTTPNotFound:
-        print 'Volume set does not exits, exiting...'
+        print('Volume set does not exits, exiting...')
         return
 
     # no members in volume set? unexpected
     if not members or not len(members) > 0:
-        print 'Volume set has no members, exiting...'
+        print('Volume set has no members, exiting...')
         return
 
     # iterate over volumes and find snapshots to delete
     for member in members:
-        name, metaKey = createSnapshotNameAndMetaKey(member, snapId)
+        name = createSnapshotName(member, snapId)
 
         if args.softDelete:
             cl.modifyVolume(name, {'expirationHours': 168})
+            args.remoteCopy and scl.modifyVolume(name, {'expirationHours': 168})
         else:
             cl.deleteVolume(name)
-
-        try:
-            cl.removeVolumeMetaData(member, metaKey)
-        except exceptions.HTTPNotFound:
-            pass
-
+            args.remoteCopy and scl.deleteVolume(name)
 
 
 def createSnapshot(cl, args):
     snapId = args.snapId
 
-    if args.vmClone == True:
+    if args.vmClone:
         srcName = createVmCloneName(args.namingType, args.id, args.vmId)
     else:
         srcName = createVVName(args.namingType, args.id)
 
-    name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
+    name = createSnapshotName(srcName, snapId)
 
     # check for soft deleted snapshot
     if args.softDelete:
@@ -536,119 +712,194 @@ def createSnapshot(cl, args):
         except exceptions.HTTPNotFound:
             pass
 
-    cl.createSnapshot(name, srcName, {'readOnly': True})
-    cl.setVolumeMetaData(srcName, metaKey, name)
+        if args.remoteCopy:
+            scl = getRemoteSystemClient(args)
+            try:
+                scl.getVolume(name)
+                # snap exists, so delete it
+                scl.deleteVolume(name)
+            except exceptions.HTTPNotFound:
+                pass
+
+    optional = {'readOnly': True}
+
+    if args.remoteCopy:
+        optional['syncSnapRcopy'] = True
+
+    cl.createSnapshot(name, srcName, optional)
 
 
 def revertSnapshot(cl, args):
     snapId = args.snapId
+    rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
 
-    if args.vmClone == True:
+    if args.vmClone:
         srcName = createVmCloneName(args.namingType, args.id, args.vmId)
     else:
         srcName = createVVName(args.namingType, args.id)
 
-    name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
+    name = createSnapshotName(srcName, snapId)
 
     optional = {'online': args.online}
 
-    cl.promoteVirtualCopy(name, optional)
+    if not args.offline and args.remoteCopy:
+        cl.stopRemoteCopy(rcgName)
+        optional['allowRemoteCopyParent'] = True
+
+    try:
+        cl.promoteVirtualCopy(name, optional)
+    except exceptions.ClientException as ex:
+        if not args.offline and args.remoteCopy:
+            cl.startRemoteCopy(rcgName)
+
+        parser.error(ex)
+
+    if not args.offline and args.remoteCopy:
+        # need to wait for snapshot promoting
+        done = False
+        i = 0
+        while not done:
+            try:
+                cl.startRemoteCopy(rcgName)
+                done = True
+            except exceptions.HTTPBadRequest as ex:
+                # wait max 5min
+                if i > 60:
+                    # other issue, exiting
+                    cl.logout()
+                    print(ex)
+                    exit(1)
+                i += 1
+
+                time.sleep(5)
 
 
 def deleteSnapshot(cl, args):
     snapId = args.snapId
+    scl = None
 
-    if args.vmClone == True:
+    if args.remoteCopy:
+        scl = getRemoteSystemClient(args)
+
+    if args.vmClone:
         srcName = createVmCloneName(args.namingType, args.id, args.vmId)
     else:
         srcName = createVVName(args.namingType, args.id)
 
-    name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
+    name = createSnapshotName(srcName, snapId)
 
-    if args.softDelete:
-        cl.modifyVolume(name, {'expirationHours': 168})
-    else:
-        cl.deleteVolume(name)
-
+    # local
     try:
-        cl.removeVolumeMetaData(srcName, metaKey)
+        if args.softDelete:
+            cl.modifyVolume(name, {'expirationHours': 168})
+        else:
+            cl.deleteVolume(name)
     except exceptions.HTTPNotFound:
         pass
+
+    # remote
+    if args.remoteCopy:
+        try:
+            if args.softDelete:
+                scl.modifyVolume(name, {'expirationHours': 168})
+            else:
+                scl.deleteVolume(name)
+        except exceptions.HTTPNotFound:
+            pass
 
 
 def flattenSnapshot(cl, args):
     srcName = args.srcName
     snapId = args.snapId
+    scl = None
 
-    name, metaKey = createSnapshotNameAndMetaKey(srcName, snapId)
+    if args.remoteCopy:
+        scl = getRemoteSystemClient(args)
+
+    name = createSnapshotName(srcName, snapId)
 
     # promote selected snapshot
     cl.promoteVirtualCopy(name)
 
     # delete all snapshots
-    meta = cl.getAllVolumeMetaData(srcName)
-    for data in meta.get('members'):
-        key = data.get('key')
-        if key.startswith('snap'):
-            snap = data.get('value')
+    snapshots = cl.getVolumeSnapshots(srcName)
+    for snap in snapshots:
+        # local
+        try:
+            if args.softDelete:
+                cl.modifyVolume(snap, {'expirationHours': 168})
+            else:
+                # need to wait for snapshot promoting
+                done = False
+                while not done:
+                    try:
+                        cl.deleteVolume(snap)
+                        done = True
+                    except exceptions.HTTPConflict:
+                        time.sleep(5)
+        except exceptions.HTTPNotFound:
+            pass
+
+        # remote
+        if args.remoteCopy:
             try:
                 if args.softDelete:
-                    cl.modifyVolume(snap, {'expirationHours': 168})
+                    scl.modifyVolume(snap, {'expirationHours': 168})
                 else:
-                    # need to wait for snapshot promoting
-                    done = False
-                    while not done:
-                        try:
-                            cl.deleteVolume(snap)
-                            done = True
-                        except exceptions.HTTPConflict:
-                            time.sleep(5)
-                # snapshot deleted, remove metadata
-                cl.removeVolumeMetaData(srcName, key)
+                    scl.deleteVolume(snap)
             except exceptions.HTTPNotFound:
-                # snapshot already not exists, remove metadata
-                cl.removeVolumeMetaData(srcName, key)
+                pass
+
 
 def hostExists(cl, args):
     try:
         cl.getHost(args.host)
     except exceptions.HTTPNotFound:
-        print 0
+        print(0)
         return
-    print 1
+    print(1)
+
 
 def addVolumeToVVSet(cl, args):
     vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+
+    # limit length of vvset name to 27 chars
+    # it is limit of 3par system
+    vvsetName = vvsetName[0:27]
 
     # get or create vvset
     try:
         cl.getVolumeSet(vvsetName)
     except exceptions.HTTPNotFound:
-        print 'Volume Set does not exists, create new'
+        print('Volume Set does not exists, create new')
         cl.createVolumeSet(vvsetName, None, args.comment)
 
     # add volume to vvset
     try:
         cl.addVolumeToVolumeSet(vvsetName, args.name)
     except exceptions.HTTPConflict as ex:
-        print 'VV already mapped to VV Set'
+        print('VV already mapped to VV Set')
 
 
 def deleteVolumeFromVVSet(cl, args):
     vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
 
+    # limit length of vvset name to 27 chars
+    # it is limit of 3par system
+    vvsetName = vvsetName[0:27]
+
     # remove volume from volume set
     try:
         cl.removeVolumeFromVolumeSet(vvsetName, args.name)
     except exceptions.HTTPNotFound:
-        print 'Volume is already removed from vv set'
+        print('Volume is already removed from vv set')
 
     # get volume set info
     try:
         vvset = cl.getVolumeSet(vvsetName)
         members = vvset.get('setmembers')
     except exceptions.HTTPNotFound:
-        print 'Volume set does not exits, exiting...'
+        print('Volume set does not exits, exiting...')
         return
 
     # if there are other members them we do not remove VV Set
@@ -659,66 +910,240 @@ def deleteVolumeFromVVSet(cl, args):
     try:
         cl.deleteVolumeSet(vvsetName)
     except exceptions.HTTPNotFound:
-        print 'VV Set already does not exits'
+        print('VV Set already does not exits')
 
 
 def createQosPolicy(cl, args):
-    vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+    if args.remoteCopy:
+        vvsetName = 'RCP_{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    else:
+        vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+        # limit length of vvset name to 27 chars
+        # it is limit of 3par system
+        vvsetName = vvsetName[0:27]
 
     # create QoS policy if not exists
     qosRules = prepareQosRules(args)
-    try:
-        qos = cl.queryQoSRule(vvsetName)
-        # compare rules
-        for k, v in qosRules.items():
-            if k == 'enable':
-                k = 'enabled'
-            if qos.get(k) != v:
-                # not match, update
-                print 'QoS Policy Rules changed, need update'
-                cl.modifyQoSRules(vvsetName, qosRules)
-                break
-    except exceptions.HTTPNotFound:
-        print 'QoS Policy does not exists, create new'
-        cl.createQoSRules(vvsetName, qosRules)
+
+    # primary system
+    setQosRules(cl, vvsetName, qosRules)
+
+    # remote system
+    if args.remoteCopy:
+        scl = getRemoteSystemClient(args)
+        sysId = int(cl.getStorageSystemInfo().get('id'))
+        secVvsetName = '{name}.r{sysId}'.format(name=vvsetName, sysId=sysId)
+        # strip to 27 chars, like 3par
+        setQosRules(scl, secVvsetName[0:27], qosRules)
 
 
-def deleteQosPolicy(cl, args):
+def disableQosPolicy(cl, args):
     vvsetName = '{namingType}.one.vm.{vmId}.vvset'.format(namingType=args.namingType, vmId=args.vmId)
+    # limit length of vvset name to 27 chars
+    # it is limit of 3par system
+    vvsetName = vvsetName[0:27]
 
-    # get volume set info
     try:
-        vvset = cl.getVolumeSet(vvsetName)
-        members = vvset.get('setmembers')
+        cl.modifyQoSRules(vvsetName, {'enable': False})
     except exceptions.HTTPNotFound:
-        print 'Volume set does not exits, exiting...'
+        pass
+
+
+def addVolumeToRCGroup(cl, args):
+    shouldStartRcg = True
+
+    if args.remoteCopyGroupName is None:
+        rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    else:
+        rcgName = args.remoteCopyGroupName
+
+    scl, targetName = getRemoteCopyTargetName(args)
+
+    # get or create rc group
+    try:
+        rcg = cl.getRemoteCopyGroup(rcgName)
+        rcgState = rcg.get('targets')[0].get('state')
+        # rc group already in starting/started state
+        if rcgState == 2 or rcgState == 3:
+            shouldStartRcg = False
+            # check for peer persistence enabled
+            if rcg.get("targets")[0].get("policies").get("pathManagement"):
+                cl.stopRemoteCopy(rcgName)
+                shouldStartRcg = True
+    except exceptions.HTTPNotFound:
+        print('Remote Copy group does not exists, create new')
+        targets, optional, policies = getRCGroupParams(targetName, args)
+        cl.createRemoteCopyGroup(rcgName, targets, optional)
+        # modify to add specific options
+        cl.modifyRemoteCopyGroup(rcgName, {'targets': [{'policies': policies}]})
+        # modify to add autoSync policy, not exposed via API
+        cl._run(['setrcopygroup', 'pol', 'auto_synchronize', rcgName])
+
+    # add volume to rc group
+    # we need to have same VV name on second system too
+    secVVName = '{name}'.format(name=args.name)
+    volumeAutoCreation = True
+    skipInitialSync = False
+
+    # check if remote VV exist
+    try:
+        secVV = scl.getVolume(secVVName)
+        if 'expirationTimeSec' in secVV:
+            scl.modifyVolume(secVVName, {'rmExpTime': True})
+        volumeAutoCreation = False
+        skipInitialSync = True
+    except exceptions.HTTPNotFound:
+        pass
+
+    target = {
+        'targetName': targetName,
+        'secVolumeName': secVVName
+    }
+
+    done = False
+    i = 0
+    while not done:
+        try:
+            print('Add volume to Remote Copy group')
+            cl.addVolumeToRemoteCopyGroup(rcgName, args.name, [target], {
+                'volumeAutoCreation': volumeAutoCreation,
+                'skipInitialSync': skipInitialSync
+            })
+
+            done = True
+
+            # start rc group
+            if shouldStartRcg:
+                print('Start Remote Copy group')
+                cl.startRemoteCopy(rcgName)
+        except exceptions.HTTPForbidden as ex:
+            # there can be physical copy in progress, so we need wait and retry
+            # wait max 15min
+            if i > 180:
+                # other issue, exiting
+                cl.logout()
+                scl.logout()
+                print(ex)
+                exit(1)
+            i += 1
+            time.sleep(5)
+        except exceptions.HTTPConflict as ex:
+            # volume is already in RC Group
+            print(ex)
+            done = True
+
+    scl.logout()
+
+
+def deleteVolumeFromRCGroup(cl, args):
+    shouldStartRcg = False
+
+    if args.remoteCopyGroupName is None:
+        rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=args.namingType, vmId=args.vmId)
+    else:
+        rcgName = args.remoteCopyGroupName
+
+    # remove volume from rc group
+    try:
+        rcg = cl.getRemoteCopyGroup(rcgName)
+        rcgState = rcg.get('targets')[0].get('state')
+        # check if rc group in starting/started state
+        if rcgState == 2 or rcgState == 3:
+            # we need stop rcg only if peer persistence enabled
+            if rcg.get("targets")[0].get("policies").get("pathManagement"):
+                cl.stopRemoteCopy(rcgName)
+                shouldStartRcg = True
+
+        cl.removeVolumeFromRemoteCopyGroup(rcgName, args.name)
+    except exceptions.HTTPNotFound:
+        print('Volume is already removed from rc group')
+
+    # get rc group info
+    try:
+        rcg = cl.getRemoteCopyGroup(rcgName)
+        volumes = rcg.get('volumes')
+    except exceptions.HTTPNotFound:
+        print('Remote Copy group does not exits, exiting...')
         return
 
-    # if there are other members them we do not remove QoS Policy
-    if members and len(members) > 0:
-        return
-
-    # delete qos policy
-    try:
-        cl.deleteQoSRules(vvsetName)
-    except exceptions.HTTPNotFound:
-        print 'QoS Policy already does not exits'
+    # if there are other members them we do not remove VV Set
+    if volumes and len(volumes) > 0:
+        if shouldStartRcg:
+            print('Start Remote Copy group')
+            # start rc group back
+            cl.startRemoteCopy(rcgName)
+    else:
+        # delete rc group
+        try:
+            cl.removeRemoteCopyGroup(rcgName)
+        except exceptions.HTTPNotFound:
+            print('Remote Copy group does not exits')
 
 
 # ----------------
 # Helper functions
 # ----------------
-def createVVName(namingType, id):
-    return '{namingType}.one.{id}.vv'.format(namingType=namingType, id=id)
+def getRCGroupParams(targetName, args):
+    target = {'targetName': targetName}
+    policies = {'autoRecover': True}
 
-def createVmCloneName(namingType, id, vmId):
-    return '{namingType}.one.vm.{vmId}.{id}.vv'.format(namingType=namingType, id=id, vmId=vmId)
+    if args.remoteCopyMode == 'SYNC':
+        target['mode'] = 1
+        if args.remoteCopyHA:
+            #policies['autoFailover'] = True
+            policies['pathManagement'] = True
+    elif args.remoteCopyMode == 'PERIODIC':
+        target['mode'] = 3
+    elif args.remoteCopyMode == 'ASYNC':
+        target['mode'] = 4
 
-def createSnapshotNameAndMetaKey(srcName, snapId):
+    target['userCPG'] = args.secCpg
+    target['snapCPG'] = args.secCpg
+
+    optional = {
+        'localSnapCPG': args.cpg,
+        'localUserCPG': args.cpg
+    }
+
+    return [target], optional, policies
+
+def getRemoteCopyTargetName(args):
+    scl = getRemoteSystemClient(args)
+
+    targetName = scl.getStorageSystemInfo().get('name').encode('ascii', 'ignore')
+
+    return scl, targetName
+
+def getRemoteSystemClient(args):
+    # check for remoteCopy required args
+    if args.sapi is None or args.sip is None:
+        parser.error("--remoteCopy requires --sapi and --sip.")
+
+    secure = False
+    if args.secure:
+        secure = True
+
+    scl = client.HPE3ParClient(args.sapi, False, secure, None, True)
+    scl.setSSHOptions(args.sip, args.username, args.password)
+
+    try:
+        scl.login(args.username, args.password)
+    except exceptions.HTTPUnauthorized as ex:
+        print("Remote system: Login failed.")
+
+    return scl
+
+
+def createVVName(namingType, imageId):
+    return '{namingType}.one.{id}.vv'.format(namingType=namingType, id=imageId)
+
+def createVmCloneName(namingType, diskId, vmId):
+    return '{namingType}.one.vm.{vmId}.{id}.vv'.format(namingType=namingType, id=diskId, vmId=vmId)
+
+def createSnapshotName(srcName, snapId):
     name = '{srcName}.{snapId}'.format(srcName=srcName, snapId=snapId)
-    metaKey = 'snap{snapId}'.format(snapId=snapId)
 
-    return name, metaKey
+    return name
 
 def createVVWithName(cl, name, args):
     cpgName = args.cpg
@@ -727,13 +1152,13 @@ def createVVWithName(cl, name, args):
     if args.tpvv == True and args.tdvv != True and args.compression != True:
         optional['tpvv'] = True
 
-    if args.tdvv == True:
+    if args.tdvv:
         optional['tdvv'] = True
 
     if args.compression == True and args.size >= 16384:
         optional['compression'] = True
 
-    # minumum size for volume is 256MiB
+    # minimum size for volume is 256MiB
     if args.size < 256:
         args.size = 256
 
@@ -746,25 +1171,22 @@ def createVVWithName(cl, name, args):
 
 def deleteVVWithName(cl, name):
     if args.softDelete:
-        cl.modifyVolume(name, {'expirationHours': 168})
-        # find and delete snapshots
-        meta = cl.getAllVolumeMetaData(name)
-        for data in meta.get('members'):
-            key = data.get('key')
-            if key.startswith('snap'):
-                snap = data.get('value')
+        try:
+            cl.modifyVolume(name, {'expirationHours': 168})
+            # find and delete snapshots
+            snapshots = cl.getVolumeSnapshots(name)
+            for snap in snapshots:
                 cl.modifyVolume(snap, {'expirationHours': 168})
+        except exceptions.HTTPNotFound:
+            pass
     else:
         try:
             cl.deleteVolume(name)
         except exceptions.HTTPConflict:
             # try to find and delete snapshots
-            meta = cl.getAllVolumeMetaData(name)
-            for data in meta.get('members'):
-                key = data.get('key')
-                if key.startswith('snap'):
-                    snap = data.get('value')
-                    cl.deleteVolume(snap)
+            snapshots = cl.getVolumeSnapshots(name)
+            for snap in snapshots:
+                cl.deleteVolume(snap)
 
             # try delete again
             done = False
@@ -779,10 +1201,12 @@ def deleteVVWithName(cl, name):
                     if i > 180:
                         # other issue, exiting
                         cl.logout()
-                        print ex
+                        print(ex)
                         exit(1)
                     i += 1
                     time.sleep(5)
+        except exceptions.HTTPNotFound:
+            pass
 
 def prepareQosRules(args):
     qosRules = {
@@ -801,7 +1225,7 @@ def prepareQosRules(args):
         qosRules['bwMinGoalKB'] = 1
 
     if args.qosLatency == 0:
-        qosRules['latencyGoal'] = 5000
+        qosRules['latencyGoal'] = None
         qosRules['defaultLatency'] = True
 
     if args.qosPriority == 'LOW':
@@ -813,6 +1237,24 @@ def prepareQosRules(args):
 
     return qosRules
 
+def setQosRules(cl, vvsetName, qosRules):
+    try:
+        qos = cl.queryQoSRule(vvsetName)
+        # compare rules
+        for k, v in qosRules.items():
+            if k == 'enable':
+                k = 'enabled'
+            if k == 'defaultLatency' and v:
+                v = None
+            if qos.get(k) != v:
+                # not match, update
+                print('QoS Policy Rules changed, need update')
+                cl.modifyQoSRules(vvsetName, qosRules)
+                break
+    except exceptions.HTTPNotFound:
+        print('QoS Policy does not exists, create new')
+        cl.createQoSRules(vvsetName, qosRules)
+
 # -------------------------------------
 # Parse args and proceed with execution
 # -------------------------------------
@@ -822,7 +1264,7 @@ args = parser.parse_args()
 # Login and run task
 # ------------------
 secure = False
-if args.secure == True:
+if args.secure:
     secure = True
 
 cl = client.HPE3ParClient(args.api, False, secure, None, True)
@@ -831,13 +1273,13 @@ cl.setSSHOptions(args.ip, args.username, args.password)
 try:
     cl.login(args.username, args.password)
 except exceptions.HTTPUnauthorized as ex:
-    print "Login failed."
+    print("Login failed.")
 
 try:
     globals()[args.task](cl, args)
     cl.logout()
 except Exception as ex:
     # something unexpected happened
-    print ex
+    print(ex)
     cl.logout()
     exit(1)

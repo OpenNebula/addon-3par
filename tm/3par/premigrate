@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -------------------------------------------------------------------------- #
-# Copyright 2019, FeldHost™ (feldhost.net)                                   #
+# Copyright 2022, FeldHost™ (feldhost.net)                                   #
 #                                                                            #
 # Portions copyright 2014-2016, Laurent Grawet <dev@grawet.be>               #
 # Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
@@ -92,46 +92,57 @@ ssh_exec_and_log "$SRC_HOST" "$TAR_SSH" "Error copying disk directory to target 
 # Discover luns on dst host
 #--------------------------------------------------------------------------------
 
-i=1
-while read line
-do
-    DISK_IDS[$i]="$line"
-    (( i++ ))
-done < <(onevm show $VMID --all | $GREP -w "DISK_ID" | $CUT -d\" -f2)
+DISK_IDS=$(echo $TEMPLATE_64 | base64 --decode | ${DRIVER_PATH}/../../datastore/xpath.rb --stdin '%m%/VM/TEMPLATE/DISK/DISK_ID')
 
-for j in `seq 1 ${#DISK_IDS[*]}`; do
+for k in $DISK_IDS; do
     XPATH="${DRIVER_PATH}/../../datastore/xpath.rb -b $TEMPLATE_64"
 
-    unset i k XPATH_ELEMENTS
+    unset i j XPATH_ELEMENTS
 
     while IFS= read -r -d '' element; do
         XPATH_ELEMENTS[i++]="$element"
-    done < <($XPATH     /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/SOURCE \
-                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/TM_MAD \
-                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/CLONE \
-                        /VM/TEMPLATE/DISK[DISK_ID=${DISK_IDS[$j]}]/DISK_ID \
+    done < <($XPATH     /VM/TEMPLATE/DISK[DISK_ID=$k]/SOURCE \
+                        /VM/TEMPLATE/DISK[DISK_ID=$k]/TM_MAD \
+                        /VM/TEMPLATE/DISK[DISK_ID=$k]/CLONE \
+                        /VM/TEMPLATE/DISK[DISK_ID=$k]/DISK_ID \
+                        /VM/TEMPLATE/DISK[DISK_ID=$k]/DISK_TYPE \
+                        /VM/TEMPLATE/DISK[DISK_ID=$k]/DATASTORE_ID \
                         /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-    NAME_WWN=${XPATH_ELEMENTS[k++]}
-    TM_MAD=${XPATH_ELEMENTS[k++]}
-    CLONE=${XPATH_ELEMENTS[k++]}
-    DISK_ID=${XPATH_ELEMENTS[k++]}
-    SYS_DSID=${XPATH_ELEMENTS[k++]}
+    NAME_WWN=${XPATH_ELEMENTS[j++]}
+    TM_MAD=${XPATH_ELEMENTS[j++]}
+    CLONE=${XPATH_ELEMENTS[j++]}
+    DISK_ID=${XPATH_ELEMENTS[j++]}
+    DISK_TYPE=${XPATH_ELEMENTS[j++]}
+    IMG_DSID=${XPATH_ELEMENTS[j++]}
+    SYS_DSID=${XPATH_ELEMENTS[j++]}
 
     if [ "$TM_MAD" = "3par" ]; then
-        if [ "$CLONE" == "YES" ]; then
-            #-------------------------------------------------------------------------------
-            # Get system ds information
-            #-------------------------------------------------------------------------------
 
-            unset i j XPATH_ELEMENTS
+        #-------------------------------------------------------------------------------
+        # Get ds information
+        #-------------------------------------------------------------------------------
+        XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
-            while IFS= read -r -d '' element; do
-                XPATH_ELEMENTS[i++]="$element"
-            done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
+        unset i j XPATH_ELEMENTS
 
-            NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+        while IFS= read -r -d '' element; do
+            XPATH_ELEMENTS[i++]="$element"
+        done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                          /DATASTORE/TEMPLATE/API_ENDPOINT \
+                          /DATASTORE/TEMPLATE/IP \
+                          /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                          /DATASTORE/TEMPLATE/SEC_IP \
+                          /DATASTORE/TEMPLATE/REMOTE_COPY)
 
+        API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+        IP="${XPATH_ELEMENTS[j++]:-$IP}"
+        SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+        SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+        REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+
+        # if clone or volatile = non-persistent disk
+        if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
             # get VM disk WWN
             NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                                                         -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
@@ -140,10 +151,34 @@ for j in `seq 1 ${#DISK_IDS[*]}`; do
               error_message "$NAME_WWN"
               exit 1
             fi
+
+            # Disable remote copy for non-persistent disk
+            REMOTE_COPY="NO"
         fi
 
         NAME=$(get_vv_name "$NAME_WWN")
         WWN=$(get_vv_wwn "$NAME_WWN")
+
+        if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+            log "Mapping remote $NAME_WWN to $DST_HOST"
+
+            LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
+                          -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $DST_HOST -rc $REMOTE_COPY)
+
+            if [ $? -ne 0 ]; then
+              error_message "$LUN"
+              exit 1
+            fi
+
+            RESCAN_CMD=$(cat <<EOF
+                set -e
+                $(rescan_scsi_bus "$LUN")
+EOF
+)
+
+            ssh_exec_and_log "$DST_HOST" "$RESCAN_CMD" \
+              "Error registering remote $NAME_WWN to $DST_HOST"
+        fi
 
         log "Mapping $NAME_WWN to $DST_HOST"
 

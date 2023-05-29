@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -------------------------------------------------------------------------- #
-# Copyright 2019, FeldHost™ (feldhost.net)                                   #
+# Copyright 2022, FeldHost™ (feldhost.net)                                   #
 #                                                                            #
 # Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
 #                                                                            #
@@ -59,12 +59,16 @@ done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DISK_TYPE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID \
                     /VM/DEPLOY_ID)
 
 IMAGE_ID="${XPATH_ELEMENTS[j++]}"
 DISK_SRC="${XPATH_ELEMENTS[j++]}"
 CLONE="${XPATH_ELEMENTS[j++]}"
+DISK_TYPE="${XPATH_ELEMENTS[j++]}"
+IMG_DSID="${XPATH_ELEMENTS[j++]}"
 SYS_DSID="${XPATH_ELEMENTS[j++]}"
 DEPLOY_ID="${XPATH_ELEMENTS[j++]}"
 
@@ -77,24 +81,33 @@ fi
 # Get system ds information
 #-------------------------------------------------------------------------------
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                  /DATASTORE/TEMPLATE/API_ENDPOINT \
+                  /DATASTORE/TEMPLATE/IP \
+                  /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                  /DATASTORE/TEMPLATE/SEC_IP \
+                  /DATASTORE/TEMPLATE/REMOTE_COPY)
 
-NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+
+if [ "$CLONE" == "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
+  # Disable remote copy for non-persistent disk
+  REMOTE_COPY="NO"
+fi
 
 LIBVIRT_URI="${QEMU_PROTOCOL}://${SRC_HOST}/system"
 
 if virsh -c $LIBVIRT_URI domfsfreeze $DEPLOY_ID ; then
     trap "virsh -c $LIBVIRT_URI domfsthaw $DEPLOY_ID" EXIT TERM INT HUP
-elif virsh -c $LIBVIRT_URI suspend $DEPLOY_ID; then
-    trap "virsh -c $LIBVIRT_URI resume $DEPLOY_ID" EXIT TERM INT HUP
-else
-    error_message "Could not domfsfreeze or suspend domain"
-    exit 1
 fi
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py createSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                                        -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID -vc $CLONE
+python ${DRIVER_PATH}/../../datastore/3par/3par.py createSnapshot -a $API_ENDPOINT -i $IP -s $SECURE -sapi $SEC_API_ENDPOINT \
+      -sip $SEC_IP -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -si $SNAP_ID -vc $CLONE -rc $REMOTE_COPY

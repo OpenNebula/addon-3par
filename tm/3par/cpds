@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -------------------------------------------------------------------------- #
-# Copyright 2019, FeldHost™ (feldhost.net)                                   #
+# Copyright 2022, FeldHost™ (feldhost.net)                                   #
 #                                                                            #
 # Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
 #                                                                            #
@@ -46,6 +46,10 @@ DRIVER_PATH=$(dirname $0)
 source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 . ${DRIVER_PATH}/../../datastore/3par/scripts_3par.sh
 
+# preserve vars from conf file
+CONF_API_ENDPOINT="$API_ENDPOINT"
+CONF_IP="$IP"
+
 # -------- Get cpds and datastore arguments from OpenNebula core ------------
 
 SRC=$1
@@ -54,19 +58,28 @@ SNAP_ID=$3
 VMID=$4
 DSID=$5
 
+SRC=`fix_dir_slashes $SRC`
+SRC_PATH=`arg_path $SRC`
+SRC_HOST=`arg_host $SRC`
+
 #-------------------------------------------------------------------------------
 # Get dest ds information
 #-------------------------------------------------------------------------------
 
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $DSID | $XPATH /DATASTORE/TEMPLATE/CPG)
+done < <(onedatastore show -x $DSID | $XPATH \
+                    /DATASTORE/TEMPLATE/API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/IP \
+                    /DATASTORE/TEMPLATE/CPG)
 
-CPG="${XPATH_ELEMENTS[0]:-$CPG}"
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$CONF_API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$CONF_IP}"
+CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
 
 #-------------------------------------------------------------------------------
 # Get Image information
@@ -74,39 +87,76 @@ CPG="${XPATH_ELEMENTS[0]:-$CPG}"
 
 DISK_ID=$(basename ${SRC} | cut -d. -f2)
 
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onevm show -x $VMID| $XPATH \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DISK_TYPE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-IMAGE_ID="${XPATH_ELEMENTS[0]}"
-CLONE="${XPATH_ELEMENTS[1]}"
-SYS_DSID="${XPATH_ELEMENTS[2]}"
+IMAGE_ID="${XPATH_ELEMENTS[j++]}"
+CLONE="${XPATH_ELEMENTS[j++]}"
+DISK_TYPE="${XPATH_ELEMENTS[j++]}"
+IMAGE_NAME_WWN="${XPATH_ELEMENTS[j++]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
+
+NAME=$(get_vv_name "$DST")
+WWN=$(get_vv_wwn "$DST")
 
 #-------------------------------------------------------------------------------
 # Get system ds information
 #-------------------------------------------------------------------------------
 
-unset i XPATH_ELEMENTS
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                    /DATASTORE/TEMPLATE/API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/IP)
 
-NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
-
-NAME=$(get_vv_name "$DST")
+SYS_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$CONF_API_ENDPOINT}"
+SYS_IP="${XPATH_ELEMENTS[j++]:-$CONF_IP}"
 
 log "Copy disk id $DISK_ID attached on VM $VMID to new disk $NAME"
 
-if [ "$CLONE" != "YES" ]; then
+# Not clone and not volatile
+if [ "$CLONE" == "NO" ] && [ "$DISK_TYPE" == "BLOCK" ]; then
   DISK_ID=$IMAGE_ID
-  CLONE=0
 fi
 
-python ${DRIVER_PATH}/../../datastore/3par/3par.py copyVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                                    -nt $NAMING_TYPE -id $DISK_ID -vi $VMID -d $NAME -c $CPG -vc $CLONE
+# check IPs of SYSTEM DS and IMAGE DS
+if [ "$IP" != "$SYS_IP" ]; then
+  log "SYSTEM DS is on remote storage system"
+
+  # Not clone and not volatile
+  if [ "$CLONE" == "NO" ] && [ "$DISK_TYPE" == "BLOCK" ]; then
+    SRC_WWN=$(get_vv_wwn "$IMAGE_NAME_WWN")
+  else
+    # get VM disk WWN
+    SRC_NAME_WWN=$(get_vm_clone_vv_source "$SYS_API_ENDPOINT" "$SYS_IP" "$VMID" "$DISK_ID")
+    SRC_WWN=$(get_vv_wwn "$SRC_NAME_WWN")
+  fi
+
+  # export new vv and clone old one to it
+  LUN=$(export_vv "$NAME" "$SRC_HOST")
+  map_and_copy_to_lun "$SRC_HOST" "$SRC_WWN" "$LUN" "$WWN"
+
+  # unexport new vv
+  unmap_lun "$SRC_HOST" "$WWN"
+  unexport_vv "$NAME" "$SRC_HOST"
+else
+  COPY=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py copyVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
+                                      -nt $NAMING_TYPE -id $DISK_ID -si $SNAP_ID -vi $VMID -d $NAME -c $CPG -vc $CLONE)
+
+  if [ $? -ne 0 ]; then
+    error_message "$COPY"
+    exit 1
+  fi
+fi

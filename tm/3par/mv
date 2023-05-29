@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -------------------------------------------------------------------------- #
-# Copyright 2019, FeldHost™ (feldhost.net)                                   #
+# Copyright 2022, FeldHost™ (feldhost.net)                                   #
 #                                                                            #
 # Portions copyright 2014-2016, Laurent Grawet <dev@grawet.be>               #
 # Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
@@ -20,7 +20,9 @@
 # -------------------------------------------------------------------------- #
 
 ###############################################################################
-# This script is used to move images/directories across system_ds in different hosts. When used for the system datastore the script will received the directory 
+# This script is used to move images/directories across system_ds in different hosts.
+# When used for the system datastore the script will received the directory
+# This script is call during undeploy action too
 ###############################################################################
 
 # MV <hostA:system_ds/disk.i|hostB:system_ds/disk.i> vmid dsid
@@ -29,6 +31,9 @@
 #   - system_ds is the path for the system datastore in the host
 #   - vmid is the id of the VM
 #   - dsid is the target datastore (0 is the system datastore)
+
+trap "exit 1" TERM
+export TOP_PID=$$
 
 # ------------ Set up the environment to source common tools ------------
 
@@ -44,6 +49,12 @@ DRIVER_PATH=$(dirname $0)
 
 source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 . ${DRIVER_PATH}/../../datastore/3par/scripts_3par.sh
+
+# preserve vars from conf file
+CONF_API_ENDPOINT="$API_ENDPOINT"
+CONF_IP="$IP"
+CONF_SEC_API_ENDPOINT="$SEC_API_ENDPOINT"
+CONF_SEC_IP="$SEC_IP"
 
 # -------- Get mv and datastore arguments from OpenNebula core ------------
 
@@ -74,8 +85,10 @@ fi
 
 LCM_STATE=`lcm_state`
 
+# moving system datastore deployment files, not a disk
 if [ `is_disk $DST_PATH` -eq 0 ]; then
     # VM is in unknown state, SRC_HOST probably in failed state
+    # PROLOG_MIGRATE_UNKNOWN PROLOG_MIGRATE_UNKNOWN_FAILURE
     if [ $LCM_STATE -eq 60 ] || [ $LCM_STATE -eq 61 ]; then
       log "Not moving files from $SRC_HOST in FT mode"
       exit 0
@@ -107,131 +120,292 @@ fi
 
 DISK_ID=$(echo "$DST_PATH" | $AWK -F. '{print $NF}')
 
-XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
-
-unset i XPATH_ELEMENTS
+unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
 done < <(onevm show -x $VMID| $XPATH \
+                    /VM/NAME \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SIZE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/SOURCE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
                     /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/PERSISTENT \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DISK_TYPE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/TYPE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID \
                     /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-NAME_WWN="${XPATH_ELEMENTS[0]}"
-IMAGE_ID="${XPATH_ELEMENTS[1]}"
-CLONE="${XPATH_ELEMENTS[2]}"
-PERSISTENT="${XPATH_ELEMENTS[3]}"
-SYS_DSID="${XPATH_ELEMENTS[4]}"
+VM_NAME="${XPATH_ELEMENTS[j++]//[^A-Za-z0-9\[\]() _~+-]/}"
+SIZE="${XPATH_ELEMENTS[j++]}"
+NAME_WWN="${XPATH_ELEMENTS[j++]}"
+IMAGE_ID="${XPATH_ELEMENTS[j++]}"
+CLONE="${XPATH_ELEMENTS[j++]}"
+PERSISTENT="${XPATH_ELEMENTS[j++]}"
+DISK_TYPE="${XPATH_ELEMENTS[j++]}"
+TYPE="${XPATH_ELEMENTS[j++]}"
+IMG_DSID="${XPATH_ELEMENTS[j++]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
-# Disk os clone, so copy was created
-if [ "$CLONE" == "YES" ]; then
-  #-------------------------------------------------------------------------------
-  # Get system ds information
-  #-------------------------------------------------------------------------------
-  
-  unset i XPATH_ELEMENTS
-  
-  while IFS= read -r -d '' element; do
-      XPATH_ELEMENTS[i++]="$element"
-  done < <(onedatastore show -x $SYS_DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
-  
-  NAMING_TYPE="${XPATH_ELEMENTS[0]:-$NAMING_TYPE}"
-  
-  # get VM disk WWN
-  NAME_WWN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py getVmClone -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                -p $PASSWORD -nt $NAMING_TYPE -vi $VMID -id $DISK_ID)
+# preserve original source
+ORG_NAME_WWN="$NAME_WWN"
 
-  if [ $? -ne 0 ]; then
-    error_message "$NAME_WWN"
-    exit 1
-  fi
+PREV_SYS_DSID=$(onevm show -x $VMID | xmllint --xpath 'string(/VM/HISTORY_RECORDS/HISTORY[last()-1]/DS_ID)' -)
+
+if [ -z "$PREV_SYS_DSID" ]; then
+  PREV_SYS_DSID=$SYS_DSID
 fi
 
+#-------------------------------------------------------------------------------
+# Get system ds information
+#-------------------------------------------------------------------------------
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                    /DATASTORE/TEMPLATE/API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/IP \
+                    /DATASTORE/TEMPLATE/CPG \
+                    /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/SEC_IP \
+                    /DATASTORE/TEMPLATE/REMOTE_COPY \
+                    /DATASTORE/TEMPLATE/SEC_CPG \
+                    /DATASTORE/TEMPLATE/THIN \
+                    /DATASTORE/TEMPLATE/DEDUP \
+                    /DATASTORE/TEMPLATE/COMPRESSION \
+                    /DATASTORE/TEMPLATE/QOS_ENABLE \
+                    /DATASTORE/TEMPLATE/QOS_PRIORITY \
+                    /DATASTORE/TEMPLATE/QOS_MAX_IOPS \
+                    /DATASTORE/TEMPLATE/QOS_MIN_IOPS \
+                    /DATASTORE/TEMPLATE/QOS_MAX_BW \
+                    /DATASTORE/TEMPLATE/QOS_MIN_BW \
+                    /DATASTORE/TEMPLATE/QOS_LATENCY)
+
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+SEC_CPG="${XPATH_ELEMENTS[j++]:-$SEC_CPG}"
+THIN="${XPATH_ELEMENTS[j++]:-$THIN}"
+DEDUP="${XPATH_ELEMENTS[j++]:-$DEDUP}"
+COMPRESSION="${XPATH_ELEMENTS[j++]:-$COMPRESSION}"
+QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
+QOS_PRIORITY="${XPATH_ELEMENTS[j++]:-$QOS_PRIORITY}"
+QOS_MAX_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MAX_IOPS}"
+QOS_MIN_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MIN_IOPS}"
+QOS_MAX_BW="${XPATH_ELEMENTS[j++]:-$QOS_MAX_BW}"
+QOS_MIN_BW="${XPATH_ELEMENTS[j++]:-$QOS_MIN_BW}"
+QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
+
+#-------------------------------------------------------------------------------
+# Get previous system ds information
+#-------------------------------------------------------------------------------
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $PREV_SYS_DSID | $XPATH \
+                    /DATASTORE/TEMPLATE/API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/IP \
+                    /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                    /DATASTORE/TEMPLATE/SEC_IP \
+                    /DATASTORE/TEMPLATE/REMOTE_COPY)
+
+PREV_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$CONF_API_ENDPOINT}"
+PREV_IP="${XPATH_ELEMENTS[j++]:-$CONF_IP}"
+PREV_SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$CONF_SEC_API_ENDPOINT}"
+PREV_SEC_IP="${XPATH_ELEMENTS[j++]:-$CONF_SEC_IP}"
+PREV_REMOTE_COPY="${XPATH_ELEMENTS[j++]:-NO}"
+
+#-------------------------------------------------------------------------------
+# Check for compatibility
+#-------------------------------------------------------------------------------
+if [ "$PREV_REMOTE_COPY" == "NO" ] && [ "$REMOTE_COPY" == "YES" ] && [ "$PREV_IP" != "$IP" ]; then
+    error_message "You can not deploy to this RC enabled SYSTEM_DS because primary storage is different from actual one.
+    It will cause overwrite from remote image!
+    Please select RC enabled SYSTEM_DS with the same primary storage."
+    exit 1
+fi
+
+# Overwrite NAME_WWN if disk is clone or volatile
+if [ "$CLONE" = "YES" ] || [ "$DISK_TYPE" == "FILE" ]; then
+  # get VM disk WWN
+  NAME_WWN=$(get_vm_clone_vv_source "$PREV_API_ENDPOINT" "$PREV_IP" "$VMID" "$DISK_ID")
+
+  # Disable remote copy for non-persistent disk
+  REMOTE_COPY="NO"
+  PREV_REMOTE_COPY="NO"
+fi
+
+# extract VV Name and Wwn
 NAME=$(get_vv_name "$NAME_WWN")
 WWN=$(get_vv_wwn "$NAME_WWN")
+
+# is src/dest host registered on 3par? so is it compute node and not frontend?
+IS_SRC_HOST_3PAR=$(host_exists "$SRC_HOST")
+IS_DST_HOST_3PAR=$(host_exists "$DST_HOST")
+
+#-------------------------------------------------------------------------------
+# Subroutines
+#-------------------------------------------------------------------------------
+function remove_vv {
+    local API_ENDPOINT="$1"
+    local IP="$2"
+    local SEC_API_ENDPOINT="$3"
+    local SEC_IP="$4"
+    local NAME="$5"
+    local WWN="$6"
+    local IS_MIGRATION="${7:-NO}"
+
+    # flush disk only if src host is not in failed state
+    if [ $LCM_STATE -ne 60 ] && [ $LCM_STATE -ne 61 ]; then
+        unmap_lun "$SRC_HOST" "$WWN"
+    fi
+
+    unexport_vv "$NAME" "$SRC_HOST"
+
+    if [ "$PREV_REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+        unexport_vv "$NAME" "$SRC_HOST" "YES"
+    fi
+
+    # VM lcm state is EPILOG_UNDEPLOY
+    # or migrating between RC and non-RC datastore
+    # or migrating between storage systems
+    if [ $LCM_STATE -eq 30 ] || [ "$PREV_REMOTE_COPY" != "$REMOTE_COPY" ] || [ "$IS_MIGRATION" == "YES" ]; then
+        # perform cleanup
+        if [ "$PREV_REMOTE_COPY" == "YES" ]; then
+            remove_vv_from_rcg "$NAME" "$VMID"
+        else
+            remove_vv_from_vvset "$NAME" "$VMID"
+        fi
+    fi
+}
+
+function add_vv {
+    local NAME="$1"
+    local WWN="$2"
+    local IS_MIGRATION="${3:-NO}"
+
+    # VM lcm state is PROLOG_UNDEPLOY
+    # or migrating between RC and non-RC datastore
+    # or migrating between storage systems
+    if [ $LCM_STATE -eq 31 ] || [ "$PREV_REMOTE_COPY" != "$REMOTE_COPY" ] || [ "$IS_MIGRATION" == "YES" ]; then
+        if [ "$REMOTE_COPY" == "YES" ]; then
+            add_vv_to_rcg "$NAME" "$VMID"
+
+            log "Add info about RC to image template"
+            image_update "$IMAGE_ID" "RC=YES RC_SYSTEM_DS_ID=$SYS_DSID"
+        else
+            add_vv_to_vvset "$NAME" "$VMID"
+        fi
+
+        if [ "$QOS_ENABLE" == "YES" ]; then
+            create_qos_policy "$VMID"
+        fi
+
+        if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+            LUN=$(export_vv "$NAME" "$DST_HOST" "YES")
+            rescan_lun "$DST_HOST" "$LUN"
+        fi
+    fi
+
+    LUN=$(export_vv "$NAME" "$DST_HOST")
+    map_lun "$DST_HOST" "$LUN" "$WWN" "$DST_DIR" "$DST_PATH"
+}
 
 #-------------------------------------------------------------------------------
 # Start actions
 #-------------------------------------------------------------------------------
 
-SRC_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                        -p $PASSWORD -hs $SRC_HOST)
-
-if [ $? -ne 0 ]; then
-  error_message "$SRC_HOST_3PAR"
-  exit 1
-fi
-
-DST_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                        -p $PASSWORD -hs $DST_HOST)
-
-if [ $? -ne 0 ]; then
-  error_message "$DST_HOST_3PAR"
-  exit 1
-fi
-
-# Not persistent and not clone, so this disk can be used by more VMs at the same time
+# CDROM, so this disk can be used by more VMs at the same time
 CAN_UNMAP=1
-if [ "$PERSISTENT" != "YES" ] && [ "$CLONE" == "NO" ]; then
+if [ "$CLONE" == "NO" ] && [ "$TYPE" == "CDROM" ]; then
     # check if disk is in use by other VMs
-    unset i XPATH_ELEMENTS
-
-    while IFS= read -r -d '' element; do
-        XPATH_ELEMENTS[i++]="$element"
-    done < <(oneimage show -x $IMAGE_ID| $XPATH /IMAGE/RUNNING_VMS)
-
-    RUNNING_VMS="${XPATH_ELEMENTS[0]}"
+    RUNNING_VMS=$(get_image_running_vms_count "$IMAGE_ID")
 
     # image is used, so can't unmap
     [ "$RUNNING_VMS" != "1" ] && CAN_UNMAP=0
 fi
 
-if [ "$SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
-    log "Unmapping $WWN from $SRC_HOST"
-
-    # src host in failed state, can not flush disk before unexport
-    if [ $LCM_STATE -ne 60 ] && [ $LCM_STATE -ne 61 ]; then
-        FLUSH_CMD=$(cat <<EOF
-          set -e
-          $(remove_lun "$WWN")
-EOF
-)
-
-        ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
-            "Error flushing out mapping"
+# moving persistent disk between storage systems using remote copy, full switchover
+# only if VM lcm state not EPILOG_UNDEPLOY
+if [ $LCM_STATE -ne 30 ] && [ "$PERSISTENT" == "YES" ] && [ "$IP" != "$PREV_IP" ] && [ "$REMOTE_COPY" == "YES" ] && [ "$PREV_REMOTE_COPY" == "YES" ]; then
+    # src host is compute node
+    if [ "$IS_SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
+        remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$PREV_SEC_API_ENDPOINT" "$PREV_SEC_IP" "$NAME" "$WWN" "YES"
     fi
 
-    python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                                                -n $NAME -hs $SRC_HOST
-
-    if [ $? -ne 0 ]; then
-      error_message "Error unexporting VV"
-      exit 1
+    # dest host is compute node
+    if [ "$IS_DST_HOST_3PAR" == "1" ]; then
+        add_vv "$NAME" "$WWN" "YES"
     fi
+
+    exit 0
 fi
 
-if [ "$DST_HOST_3PAR" == "1" ]; then
-    log "Mapping $NAME_WWN to $DST_HOST"
-
-    LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                                                                -n $NAME -hs $DST_HOST)
-
-    if [ $? -ne 0 ]; then
-      error_message "$LUN"
-      exit 1
+# if moving to different 3par, but it is not a CDROM and not migrating between RC and non-RC datastore
+# only if VM lcm state not EPILOG_UNDEPLOY
+if [ $LCM_STATE -ne 30 ] && [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] && [ "$PREV_REMOTE_COPY" == "$REMOTE_COPY" ]; then
+    if [ "$CLONE" != "YES" ] && [ "$DISK_TYPE" != "FILE" ]; then
+        error_message "Not supported action yet! Can not move persistent disk between storage systems!"
+        exit 1
     fi
-    
-    DISCOVER_CMD=$(cat <<EOF
-        set -e
-        mkdir -p "$DST_DIR"
-        $(discover_lun "$LUN" "$WWN")
-        ln -sf "\$DEV" "$DST_PATH"
+
+    # and disk is clone or volatile, lets create new vv
+    SRC_NAME=$(get_vv_name "$ORG_NAME_WWN")
+    NEW_NAME_WWN=$(create_vm_clone_vv "$SRC_NAME" "$VMID" "$DISK_ID" "$SIZE" "$VM_NAME" "YES")
+    NEW_NAME=$(get_vv_name "$NEW_NAME_WWN")
+    NEW_WWN=$(get_vv_wwn "$NEW_NAME_WWN")
+
+    # disable qos policy to speed up copy
+    if [ "$QOS_ENABLE" == "YES" ]; then
+        disable_qos_policy "$PREV_API_ENDPOINT" "$PREV_IP" "$VMID"
+    fi
+
+    # export new vv and clone old one to it
+    LUN=$(export_vv "$NEW_NAME" "$SRC_HOST")
+    map_and_copy_to_lun "$SRC_HOST" "$WWN" "$LUN" "$NEW_WWN"
+
+    # unexport new vv only if destination host is different
+    if [ "$SRC_HOST" != "$DST_HOST" ]; then
+        unmap_lun "$SRC_HOST" "$NEW_WWN"
+        unexport_vv "$NEW_NAME" "$SRC_HOST"
+    fi
+
+    # src host is compute node, flush, unexport old vv and delete it
+    if [ "$IS_SRC_HOST_3PAR" == "1" ]; then
+        remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$PREV_SEC_API_ENDPOINT" "$PREV_SEC_IP" "$NAME" "$WWN" "YES"
+        delete_vm_clone_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$VMID" "$DISK_ID"
+    fi
+
+    # dest host is compute node, export and discover new vv
+    if [ "$IS_DST_HOST_3PAR" == "1" ]; then
+        add_vv "$NEW_NAME" "$NEW_WWN" "YES"
+
+        # update disk symlink
+        CMD=$(cat <<EOF
+          set -e
+          DEV="/dev/mapper/3$NEW_WWN"
+          ln -sf "\$DEV" "$SRC_PATH"
 EOF
 )
-    
-    ssh_exec_and_log "$DST_HOST" "$DISCOVER_CMD" \
-        "Error registering $NAME_WWN to $DST_HOST"
+
+        ssh_exec_and_log "$SRC_HOST" "$CMD" \
+          "Error sym-linking $SRC_PATH on $SRC_HOST"
+    fi
+
+    exit 0
+fi
+
+# src host is compute node
+if [ "$IS_SRC_HOST_3PAR" == "1" ] && [ "$CAN_UNMAP" == "1" ]; then
+    remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$PREV_SEC_API_ENDPOINT" "$PREV_SEC_IP" "$NAME" "$WWN"
+fi
+
+# dest host is compute node
+if [ "$IS_DST_HOST_3PAR" == "1" ]; then
+    add_vv "$NAME" "$WWN"
 fi

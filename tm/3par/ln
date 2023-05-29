@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # -------------------------------------------------------------------------- #
-# Copyright 2019, FeldHost™ (feldhost.net)                                   #
+# Copyright 2022, FeldHost™ (feldhost.net)                                   #
 #                                                                            #
 # Portions copyright 2014-2016, Laurent Grawet <dev@grawet.be>               #
 # Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
@@ -29,7 +29,7 @@
 #   - host is the target host to deploy the VM
 #   - remote_system_ds is the path for the system datastore in the host
 #   - vmid is the id of the VM
-#   - dsid is the target datastore (0 is the system datastore)
+#   - dsid is the source datastore (0 is the system datastore)
 
 # ------------ Set up the environment to source common tools ------------
 
@@ -77,31 +77,47 @@ unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onevm show -x $VMID | $XPATH /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/DATASTORE_ID)
+done < <(onevm show -x $VMID | $XPATH \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/IMAGE_ID \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/CLONE \
+                    /VM/TEMPLATE/DISK[DISK_ID=$DISK_ID]/TYPE \
+                    /VM/HISTORY_RECORDS/HISTORY[last\(\)]/DS_ID)
 
-SRC_DSID="${XPATH_ELEMENTS[j++]}"
-
-#-------------------------------------------------------------------------------
-# Get dest ds information
-#-------------------------------------------------------------------------------
-
-unset i j XPATH_ELEMENTS
-
-while IFS= read -r -d '' element; do
-    XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $DSID | $XPATH /DATASTORE/TEMPLATE/NAMING_TYPE)
-
-NAMING_TYPE="${XPATH_ELEMENTS[j++]:-$NAMING_TYPE}"
+IMAGE_ID="${XPATH_ELEMENTS[j++]}"
+CLONE="${XPATH_ELEMENTS[j++]}"
+TYPE="${XPATH_ELEMENTS[j++]}"
+SYS_DSID="${XPATH_ELEMENTS[j++]}"
 
 #-------------------------------------------------------------------------------
-# Get src ds information
+# Get image ds information
 #-------------------------------------------------------------------------------
 
 unset i j XPATH_ELEMENTS
 
 while IFS= read -r -d '' element; do
     XPATH_ELEMENTS[i++]="$element"
-done < <(onedatastore show -x $SRC_DSID | $XPATH \
+done < <(onedatastore show -x $DSID | $XPATH \
+                                /DATASTORE/TEMPLATE/CPG \
+                                /DATASTORE/TEMPLATE/IP)
+
+CPG="${XPATH_ELEMENTS[j++]:-$CPG}"
+IMG_IP="${XPATH_ELEMENTS[j++]:-$IP}"
+
+#-------------------------------------------------------------------------------
+# Get system ds information
+#-------------------------------------------------------------------------------
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onedatastore show -x $SYS_DSID | $XPATH \
+                                /DATASTORE/TEMPLATE/API_ENDPOINT \
+                                /DATASTORE/TEMPLATE/IP \
+                                /DATASTORE/TEMPLATE/SEC_API_ENDPOINT \
+                                /DATASTORE/TEMPLATE/SEC_IP \
+                                /DATASTORE/TEMPLATE/REMOTE_COPY \
+                                /DATASTORE/TEMPLATE/SEC_CPG \
                                 /DATASTORE/TEMPLATE/QOS_ENABLE \
                                 /DATASTORE/TEMPLATE/QOS_PRIORITY \
                                 /DATASTORE/TEMPLATE/QOS_MAX_IOPS \
@@ -110,6 +126,12 @@ done < <(onedatastore show -x $SRC_DSID | $XPATH \
                                 /DATASTORE/TEMPLATE/QOS_MIN_BW \
                                 /DATASTORE/TEMPLATE/QOS_LATENCY)
 
+API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$API_ENDPOINT}"
+IP="${XPATH_ELEMENTS[j++]:-$IP}"
+SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
+SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
+REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
+SEC_CPG="${XPATH_ELEMENTS[j++]:-$SEC_CPG}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
 QOS_PRIORITY="${XPATH_ELEMENTS[j++]:-$QOS_PRIORITY}"
 QOS_MAX_IOPS="${XPATH_ELEMENTS[j++]:-$QOS_MAX_IOPS}"
@@ -119,28 +141,79 @@ QOS_MIN_BW="${XPATH_ELEMENTS[j++]:-$QOS_MIN_BW}"
 QOS_LATENCY="${XPATH_ELEMENTS[j++]:-$QOS_LATENCY}"
 
 #-------------------------------------------------------------------------------
+# Check for compatibility
+#-------------------------------------------------------------------------------
+if [ "$IMG_IP" != "$IP" ]; then
+    # TODO: add support in ds/clone to clone between storage systems and add hint to the following error_message
+    error_message "The image $IMAGE_ID  is located in different storage system. Can not deploy to this system datastore!"
+    exit 1
+fi
+
+#-------------------------------------------------------------------------------
 # Start actions
 #-------------------------------------------------------------------------------
+# Disk is CDROM
+if [ "$CLONE" = "NO" ] && [ "$TYPE" == "CDROM" ]; then
+  # Disable remote copy
+  REMOTE_COPY="NO"
+fi
 
-log "Add disk to VM VV Set"
-VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToVVSet -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                    -nt $NAMING_TYPE -n $NAME -vi $VMID)
+if [ "$REMOTE_COPY" == "YES" ]; then
+    log "Create remote copy group"
+    RCG=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToRCGroup -a $API_ENDPOINT -i $IP \
+      -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID \
+      -c $CPG -sc $SEC_CPG -rcm $REMOTE_COPY_MODE)
 
-if [ $? -ne 0 ]; then
-  error_message "$VVSET"
-  exit 1
+    if [ $? -ne 0 ]; then
+      error_message "$RCG"
+      exit 1
+    fi
+
+    log "Add info about RC to image template"
+    image_update $IMAGE_ID "RC=YES RC_SYSTEM_DS_ID=$SYS_DSID"
+else
+    log "Add disk to VM VV Set"
+    VVSET=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py addVolumeToVVSet -a $API_ENDPOINT -i $IP -s $SECURE \
+                  -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -n $NAME -vi $VMID)
+
+    if [ $? -ne 0 ]; then
+      error_message "$VVSET"
+      exit 1
+    fi
 fi
 
 if [ "$QOS_ENABLE" == "YES" ]; then
     log "Create QoS Policy"
-    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
-                        -nt $NAMING_TYPE -n $NAME -vi $VMID -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS \
-                        -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY)
+    QOS=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py createQosPolicy -a $API_ENDPOINT -i $IP \
+          -sapi $SEC_API_ENDPOINT -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -nt $NAMING_TYPE -vi $VMID \
+          -qp $QOS_PRIORITY -qxi $QOS_MAX_IOPS -qmi $QOS_MIN_IOPS -qxb $QOS_MAX_BW -qmb $QOS_MIN_BW -ql $QOS_LATENCY \
+          -rc $REMOTE_COPY)
 
     if [ $? -ne 0 ]; then
       error_message "$QOS"
       exit 1
     fi
+fi
+
+if [ "$REMOTE_COPY" == "YES" ] && [ "$REMOTE_COPY_MODE" == "SYNC" ]; then
+    log "Mapping remote $SRC to $DST_HOST"
+
+    LUN=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py exportVV -a $API_ENDPOINT -i $IP -sapi $SEC_API_ENDPOINT \
+                    -sip $SEC_IP -s $SECURE -u $USERNAME -p $PASSWORD -n $NAME -hs $DST_HOST -rc $REMOTE_COPY)
+
+    if [ $? -ne 0 ]; then
+      error_message "$LUN"
+      exit 1
+    fi
+
+    RESCAN_CMD=$(cat <<EOF
+        set -e
+        $(rescan_scsi_bus "$LUN")
+EOF
+)
+
+    ssh_exec_and_log "$DST_HOST" "$RESCAN_CMD" \
+      "Error registering remote $SRC to $DST_HOST"
 fi
 
 log "Mapping $SRC to $DST_HOST"

@@ -1,10 +1,6 @@
-#!/bin/bash
-
+# -*- coding: utf-8 -*-
 # -------------------------------------------------------------------------- #
 # Copyright 2022, FeldHost™ (feldhost.net)                                   #
-#                                                                            #
-# Portions copyright 2014-2016, Laurent Grawet <dev@grawet.be>               #
-# Portions copyright OpenNebula Project (OpenNebula.org), CG12 Labs          #
 #                                                                            #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may    #
 # not use this file except in compliance with the License. You may obtain    #
@@ -19,21 +15,26 @@
 # limitations under the License.                                             #
 # -------------------------------------------------------------------------- #
 
-# FAILMIGRATE SOURCE DST remote_system_dir vmid dsid template
-#  - SOURCE is the host where the VM is running
-#  - DST is the host where the VM is to be migrated
-#  - remote_system_dir is the path for the VM home in the system datastore
-#  - vmid is the id of the VM
-#  - dsid is the target datastore
-#  - template is the template of the VM in XML and base64 encoded
+import sys
+import dmmp
 
-SRC_HOST=$1
-DST_HOST=$2
-DST_PATH=$3
-VM_ID=$4
-DS_ID=$5
-TEMPLATE_64=$(cat)
+wwid = sys.argv[1]
 
-# reverse postmigrate call, should cleanup the failed host
+mpath = dmmp.mpath_get(wwid)
+print("Got mpath: wwid '%s', name '%s'" % (mpath.wwid, mpath.name))
+for pg in mpath.path_groups:
+    print("\tGot path group: id '%d', priority '%d', status '%d(%s)', "
+          "selector '%s'" %
+          (pg.id, pg.priority, pg.status, pg.status_string, pg.selector))
 
-echo "${TEMPLATE_64}" | `dirname $0`/postmigrate ${DST_HOST} ${SRC_HOST} ${DST_PATH} ${VM_ID} ${DS_ID}
+    target = None
+    for p in pg.paths:
+        # check for target wwn, must be same for all paths
+        if target is not None and target != p.target_wwnn:
+            print("\t\tPath: blk_name '%s', status '%d(%s)' has different target wwnn '%s'!" %
+                  (p.blk_name, p.status, p.status_string, p.target_wwnn))
+            exit(1)
+        else:
+            target = p.target_wwnn
+            print("\t\tGot path: blk_name '%s', status '%d(%s)', target '%s'" %
+                  (p.blk_name, p.status, p.status_string, p.target_wwnn))

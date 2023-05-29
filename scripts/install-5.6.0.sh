@@ -20,8 +20,8 @@
 
 end_msg=
 
-# install datastore and tm MAD
-for MAD in datastore tm; do
+# install datastore and tm MAD, hooks
+for MAD in datastore tm hooks; do
     M_DIR="${ONE_VAR}/remotes/${MAD}"
     echo "*** Installing ${M_DIR}/3par ..."
     mkdir -pv "${M_DIR}/3par"
@@ -34,6 +34,23 @@ echo "*** Copy VM snapshot scripts to ${ONE_VAR}/remotes/vmm/kvm/ ..."
 cp $CP_ARG "$CWD/vmm/kvm/"snapshot_*-3par "${ONE_VAR}/remotes/vmm/kvm/"
 chmod a+x "${ONE_VAR}/remotes/vmm/kvm/"snapshot_*-3par
 chown oneadmin: "${ONE_VAR}/remotes/vmm/kvm/"snapshot_*-3par
+
+echo "*** Copy VMM deploy and attach_disk scripts to ${ONE_VAR}/remotes/vmm/kvm/ ..."
+cp $CP_ARG "$CWD/vmm/kvm/deploy" "${ONE_VAR}/remotes/vmm/kvm/"
+cp $CP_ARG "$CWD/vmm/kvm/attach_disk" "${ONE_VAR}/remotes/vmm/kvm/"
+cp $CP_ARG "$CWD/vmm/kvm/restore" "${ONE_VAR}/remotes/vmm/kvm/"
+chmod a+x "${ONE_VAR}/remotes/vmm/kvm/deploy"
+chmod a+x "${ONE_VAR}/remotes/vmm/kvm/attach_disk"
+chmod a+x "${ONE_VAR}/remotes/vmm/kvm/restore"
+chown oneadmin: "${ONE_VAR}/remotes/vmm/kvm/deploy"
+chown oneadmin: "${ONE_VAR}/remotes/vmm/kvm/attach_disk"
+chown oneadmin: "${ONE_VAR}/remotes/vmm/kvm/restore"
+
+echo "*** Copy checkMultipath.py and dmmp.py scripts to ${ONE_VAR}/remotes/vmm/ ..."
+cp $CP_ARG "$CWD/vmm/checkMultipath.py" "${ONE_VAR}/remotes/vmm/"
+cp $CP_ARG "$CWD/vmm/dmmp.py" "${ONE_VAR}/remotes/vmm/"
+chown oneadmin: "${ONE_VAR}/remotes/vmm/checkMultipath.py"
+chown oneadmin: "${ONE_VAR}/remotes/vmm/dmmp.py"
 
 # Enable 3PAR in oned.conf
 if grep -q -i 3par /etc/one/oned.conf >/dev/null 2>&1; then
