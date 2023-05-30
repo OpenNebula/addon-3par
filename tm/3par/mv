@@ -350,7 +350,28 @@ fi
 # only if VM lcm state not EPILOG_UNDEPLOY
 if [ $LCM_STATE -ne 30 ] && [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] && [ "$PREV_REMOTE_COPY" == "$REMOTE_COPY" ]; then
     if [ "$CLONE" != "YES" ] && [ "$DISK_TYPE" != "FILE" ]; then
-        error_message "Not supported action yet! Can not move persistent disk between storage systems!"
+        VOLUME_SYNCED=$(volume_synced "$PREV_API_ENDPOINT" "$PREV_IP" "$NAME" "$NAMING_TYPE.one.vm.$VMID")
+
+        if [ "$VOLUME_SYNCED" == "1" ]; then
+            # src host is compute node
+            if [ "$IS_SRC_HOST_3PAR" == "1" ]; then
+                remove_vv "$PREV_API_ENDPOINT" "$PREV_IP" "$PREV_SEC_API_ENDPOINT" "$PREV_SEC_IP" "$NAME" "$WWN" "YES"
+
+                # remove VV from RCG
+                python ${DRIVER_PATH}/../../datastore/3par/3par.py deleteVolumeFromRCGroup -a "$PREV_API_ENDPOINT" \
+                                -i "$PREV_IP" -sapi "$PREV_SEC_API_ENDPOINT" -sip "$PREV_SEC_IP" -s "$SECURE" \
+                                -u "$USERNAME" -p "$PASSWORD" -nt "$NAMING_TYPE" -n "$NAME" -vi "$VMID"
+            fi
+
+            # dest host is compute node
+            if [ "$IS_DST_HOST_3PAR" == "1" ]; then
+                add_vv "$NAME" "$WWN" "YES"
+            fi
+
+            exit 0
+        fi
+
+        error_message "Persistent disk must be pre-synced on remote storage! Use prepare-vm-for-migrate.py helper script first."
         exit 1
     fi
 

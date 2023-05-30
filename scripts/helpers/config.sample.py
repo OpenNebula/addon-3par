@@ -4,3 +4,12 @@ ONE = {
     'username': 'user',
     'password': 'pass'
 }
+
+# 3PAR connection details
+_3PAR = {
+    'api': 'https://3par:8080/api/v1',
+    'ip': '3par_ip',
+    'username': '3paradm',
+    'password': '3pardata',
+    'secure': True
+}

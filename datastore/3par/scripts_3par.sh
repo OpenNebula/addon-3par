@@ -339,6 +339,24 @@ function host_exists {
     echo "$HOST_3PAR"
 }
 
+function volume_synced {
+    local API_ENDPOINT="$1"
+    local IP="$2"
+    local NAME="$3"
+    local RCGN="$4"
+    local SYNCED
+
+    SYNCED=$($PY3PAR volumeSynced -a "$API_ENDPOINT" -i "$IP" -s "$SECURE" -u "$USERNAME" -p "$PASSWORD" -n "$NAME" \
+                                  -rcgn "$RCGN")
+
+    if [ $? -ne 0 ]; then
+      error_message "$SYNCED"
+      kill -s TERM $TOP_PID
+    fi
+
+    echo "$SYNCED"
+}
+
 function remove_vv_from_rcg {
     local NAME="$1"
     local VMID="$2"

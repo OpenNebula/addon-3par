@@ -299,6 +299,12 @@ deleteVolumeFromRCGroupParser.add_argument('-vi', '--vmId', help='Id of VM')
 deleteVolumeFromRCGroupParser.add_argument('-n', '--name', help='Name of VV', required=True)
 deleteVolumeFromRCGroupParser.add_argument('-rcgn', '--remoteCopyGroupName', help='Name of RC Group', default=None)
 
+# HostExists task parser
+volumeSyncedParser = subparsers.add_parser('volumeSynced', parents=[commonParser],
+                                         help='Check if volume is in RCG and in Synced state')
+volumeSyncedParser.add_argument('-n', '--name', help='Name of VV to check', required=True)
+volumeSyncedParser.add_argument('-rcgn', '--remoteCopyGroupName', help='Name of RC Group', required=True)
+
 # ------------
 # Define tasks
 # ------------
@@ -1075,9 +1081,36 @@ def deleteVolumeFromRCGroup(cl, args):
     else:
         # delete rc group
         try:
+            rcgState = rcg.get('targets')[0].get('state')
+            # check if rc group in starting/started state
+            if rcgState == 2 or rcgState == 3:
+                cl.stopRemoteCopy(rcgName)
+
             cl.removeRemoteCopyGroup(rcgName)
         except exceptions.HTTPNotFound:
             print('Remote Copy group does not exits')
+
+
+def volumeSynced(cl, args):
+    try:
+        rcg = cl.getRemoteCopyGroup(args.remoteCopyGroupName)
+        rcgState = rcg.get('targets')[0].get('state')
+
+        if rcgState != 3:
+            print(0)
+            return
+
+        for volume in rcg.get('volumes'):
+            if args.name == volume.get('remoteVolumes')[0].get('remoteVolumeName'):
+                volumeState = volume.get('remoteVolumes')[0].get('syncStatus')
+                if volumeState == 3:
+                    print(1)
+                    return
+
+        print(0)
+    except exceptions.HTTPNotFound:
+        print(0)
+        return
 
 
 # ----------------
