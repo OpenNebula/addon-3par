@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import subprocess
 
 import sys
 import time
@@ -139,6 +140,36 @@ def addVolumeToRCGroup(vvName, namingType, vmId, sapi, sip, cpg, secCpg):
     scl.logout()
 
 
+def areAllVolumesSynced(namingType, vmId):
+    global cl
+    rcgName = '{namingType}.one.vm.{vmId}'.format(namingType=namingType, vmId=vmId)
+
+    rcg = cl.getRemoteCopyGroup(rcgName)
+    rcgState = rcg.get('targets')[0].get('state')
+
+    if rcgState != 3:
+        return False
+
+    synced = True
+    volumes = []
+    for volume in rcg.get('volumes'):
+        remoteVolumeName = volume.get('remoteVolumes')[0].get('remoteVolumeName')
+        volumeState = volume.get('remoteVolumes')[0].get('syncStatus')
+        volumeData = {'name': remoteVolumeName, 'state': volumeState}
+
+        if volumeState != 3:
+            synced = False
+            volumeSyncLength = volume.get('remoteVolumes')[0].get('volumeSyncLength')
+            volumeSyncOffset = volume.get('remoteVolumes')[0].get('volumeSyncOffset')
+            volumeData['syncPercent'] = volumeSyncOffset / volumeSyncLength * 100
+
+        volumes.append(volumeData)
+
+    if not synced:
+        return volumes
+
+    return True
+
 def getRCGroupParams(targetName, cpg, secCpg):
     target = {'targetName': targetName}
     policies = {'autoRecover': True}
@@ -178,6 +209,9 @@ def getRemoteSystemClient(sapi, sip):
 
 # get vm info
 vm = one.vm.info(args.vm)
+vmLastHistory = vm.HISTORY_RECORDS.HISTORY[-1]
+
+vmHostId = int(vmLastHistory.HID)
 
 # get source disk datastore id
 if type(vm.TEMPLATE['DISK']) is list:
@@ -187,11 +221,20 @@ else:
     disks = [vm.TEMPLATE['DISK']]
     dsId = int(vm.TEMPLATE['DISK']['DATASTORE_ID'])
 
+if args.datastore == dsId:
+    print('Target datastore is same as actual VM datastore!')
+    exit(1)
+
 # get info about source datastore
 sourceDatastore = one.datastore.info(dsId)
 
 # get info about target datastore
 targetDatastore = one.datastore.info(args.datastore)
+sysDsId = int(targetDatastore.TEMPLATE['COMPATIBLE_SYS_DS'])
+
+if not sysDsId:
+    print('Unable to determine system datastore ID, COMPATIBLE_SYS_DS on image datastore is missing')
+    exit(1)
 
 # login to 3par
 login_3par(sourceDatastore.TEMPLATE.get('API_ENDPOINT'), sourceDatastore.TEMPLATE.get('IP'))
@@ -209,5 +252,62 @@ for disk in disks:
     vvName = disk.get('SOURCE').split(':')[0]
     addVolumeToRCGroup(vvName, namingType, vm.ID, sapi, sip, cpg, secCpg)
 
+done = False
+while not done:
+    volumes = areAllVolumesSynced(namingType, vm.ID)
+
+    if volumes == True:
+        print('All volumes synced.')
+        done = True
+    else:
+        for volume in volumes:
+            if volume['state'] != 3:
+                print('Syncing volume {name}: {percent}%'.format(name=volume['name'], percent=round(volume['syncPercent'])))
+            else:
+                print('Syncing volume {name}: {percent}%'.format(name=volume['name'], percent=100))
+        time.sleep(10)
+
+print('Migrate VM')
+one.vm.migrate(vm.ID, vmHostId, False, False, sysDsId, 0)
+
+done = False
+while not done:
+    time.sleep(5)
+    vm = one.vm.info(args.vm)
+
+    if vm.LCM_STATE != 3 or vm.STATE != 3:
+        continue
+
+    print('VM Migrated')
+    done = True
+
+
+print('Update datastore on VM disk(s)')
+# change attrs on vm disk(s)
+subprocess.check_call('onedb change-body vm --id %s /VM/TEMPLATE/DISK/DATASTORE_ID %s' % (vm.ID, targetDatastore.ID),
+                      shell=True)
+subprocess.check_call('onedb change-body vm --id %s /VM/TEMPLATE/DISK/DATASTORE %s' % (vm.ID, targetDatastore.NAME),
+                      shell=True)
+
+print('Update datastores and image(s)')
+for disk in disks:
+    if disk.get('PERSISTENT') != 'YES':
+        continue
+
+    # change attrs on image object
+    subprocess.check_call('onedb change-body image --id %s /IMAGE/DATASTORE_ID %s' % (disk.get('IMAGE_ID'), targetDatastore.ID),
+                          shell=True)
+    subprocess.check_call('onedb change-body image --id %s /IMAGE/DATASTORE %s' % (disk.get('IMAGE_ID'), targetDatastore.NAME),
+                          shell=True)
+
+    # remove image from old DS list
+    subprocess.check_call(
+        'onedb change-body datastore --id %s /DATASTORE/IMAGES/ID[.=%s] --delete' % (disk.get('DATASTORE_ID'), disk.get('IMAGE_ID')),
+        shell=True)
+
+    # add image to new DS list
+    subprocess.check_call(
+        'onedb change-body datastore --id %s /DATASTORE/IMAGES/ID %s --append' % (targetDatastore.ID, disk.get('IMAGE_ID')),
+        shell=True)
 
 logout_3par()
