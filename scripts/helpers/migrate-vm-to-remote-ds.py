@@ -87,55 +87,25 @@ def addVolumeToRCGroup(vvName, namingType, vmId, sapi, sip, cpg, secCpg):
     # add volume to rc group
     # we need to have same VV name on second system too
     secVVName = '{name}'.format(name=vvName)
-    volumeAutoCreation = True
-    skipInitialSync = False
 
-    # check if remote VV exist
-    try:
-        secVV = scl.getVolume(secVVName)
-        if 'expirationTimeSec' in secVV:
-            scl.modifyVolume(secVVName, {'rmExpTime': True})
-        volumeAutoCreation = False
-        skipInitialSync = True
-    except exceptions.HTTPNotFound:
-        pass
+    # create volume on remote system manually
+    # we want to not use compression anymore, just deduplication
+    vv = cl.getVolume(vvName)
+    size = vv.get('sizeMiB')
+    comment = vv.get('comment')
+    wwn = vv.get('wwn')
 
-    target = {
-        'targetName': targetName,
-        'secVolumeName': secVVName
-    }
+    scl.createVolume(secVVName, secCpg, size, {'snapCPG': secCpg, 'tdvv': True, 'comment': comment})
+    scl.modifyVolume(secVVName, {'wwn': wwn})
 
-    done = False
-    i = 0
-    while not done:
-        try:
-            print('Add volume to Remote Copy group')
-            cl.addVolumeToRemoteCopyGroup(rcgName, vvName, [target], {
-                'volumeAutoCreation': volumeAutoCreation,
-                'skipInitialSync': skipInitialSync
-            })
+    print('Add volume to Remote Copy group')
+    targetArg = '%s:%s' % (targetName, secVVName)
+    cl._run(['admitrcopyvv', '-f', vvName, rcgName, targetArg])
 
-            done = True
-
-            # start rc group
-            if shouldStartRcg:
-                print('Start Remote Copy group')
-                cl.startRemoteCopy(rcgName)
-        except exceptions.HTTPForbidden as ex:
-            # there can be physical copy in progress, so we need wait and retry
-            # wait max 15min
-            if i > 180:
-                # other issue, exiting
-                cl.logout()
-                scl.logout()
-                print(ex)
-                exit(1)
-            i += 1
-            time.sleep(5)
-        except exceptions.HTTPConflict as ex:
-            # volume is already in RC Group
-            print(ex)
-            done = True
+    # start rc group
+    if shouldStartRcg:
+        print('Start Remote Copy group')
+        cl.startRemoteCopy(rcgName)
 
     scl.logout()
 
