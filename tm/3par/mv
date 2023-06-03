@@ -371,7 +371,7 @@ if [ $LCM_STATE -ne 30 ] && [ "$IP" != "$PREV_IP" ] && [ "$TYPE" != "CDROM" ] &&
             exit 0
         fi
 
-        error_message "Persistent disk must be pre-synced on remote storage! Use prepare-vm-for-migrate.py helper script first."
+        error_message "Persistent disk must be pre-synced on remote storage! Use migrate-vm-to-remote-ds.py helper script."
         exit 1
     fi
 

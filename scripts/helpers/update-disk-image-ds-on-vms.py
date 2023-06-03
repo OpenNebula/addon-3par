@@ -19,7 +19,7 @@ def list_of_int_arg(string):
 # Define parser
 # ----------------------------
 parser = argparse.ArgumentParser(
-    description='Move VM disk(s) from one datastore to another only in OpenNebula database')
+    description='Update VM disk(s) datastore in VM TEMPLATE')
 parser.add_argument('-vi', '--vmId',
                     help='VM id or comma separated list of VM ids',
                     type=list_of_int_arg, required=True)
