@@ -60,18 +60,6 @@ SRC_HOST="$(arg_host $SRC)"
 NAME=$(get_vv_name "$DST")
 WWN=$(get_vv_wwn "$DST")
 
-SRC_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
-                                                                        -p $PASSWORD -hs $SRC_HOST)
-
-if [ $? -ne 0 ]; then
-  error_message "$SRC_HOST_3PAR"
-  exit 1
-fi
-
-# SRC host is not compute node but frontend, so exit
-# image already unmapped by undeploy "mv" script
-[ "$SRC_HOST_3PAR" != "1" ] && exit 0
-
 XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
 #-------------------------------------------------------------------------------
@@ -108,6 +96,22 @@ SEC_API_ENDPOINT="${XPATH_ELEMENTS[j++]:-$SEC_API_ENDPOINT}"
 SEC_IP="${XPATH_ELEMENTS[j++]:-$SEC_IP}"
 REMOTE_COPY="${XPATH_ELEMENTS[j++]:-$REMOTE_COPY}"
 QOS_ENABLE="${XPATH_ELEMENTS[j++]:-$QOS_ENABLE}"
+
+#-------------------------------------------------------------------------------
+# Check source host
+#-------------------------------------------------------------------------------
+
+SRC_HOST_3PAR=$(python ${DRIVER_PATH}/../../datastore/3par/3par.py hostExists -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
+                                                                        -p $PASSWORD -hs $SRC_HOST)
+
+if [ $? -ne 0 ]; then
+  error_message "$SRC_HOST_3PAR"
+  exit 1
+fi
+
+# SRC host is not compute node but frontend, so exit
+# image already unmapped by undeploy "mv" script
+[ "$SRC_HOST_3PAR" != "1" ] && exit 0
 
 #-------------------------------------------------------------------------------
 # Unmap image from host
