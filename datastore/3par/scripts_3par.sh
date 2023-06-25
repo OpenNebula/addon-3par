@@ -138,42 +138,19 @@ function remove_lun {
     WWN="$1"
     cat <<EOF
       DEV="/dev/mapper/3$WWN"
-      SLAVES=\$($SUDO $MULTIPATH -l 3$WWN | grep -Eo 'sd[a-z]+')
+      DM_HOLDER=\$($SUDO $DMSETUP ls -o blkdevname | grep -Po "(?<=3$WWN\s\()[^)]+")
+      DM_SLAVE=\$(ls /sys/block/\${DM_HOLDER}/slaves)
 
-      if [ -z "\${SLAVES}" ]; then
-          SLAVES=\$($SUDO $MULTIPATH -r 3$WWN | grep -Eo 'sd[a-z]+')
-      fi
-
-      $(multipath_flush "3$WWN")
+      $(multipath_flush "\$DEV")
 
       unset device
-      for device in \${SLAVES}
+      for device in \${DM_SLAVE}
       do
           if [ -e /dev/\${device} ]; then
               $SUDO $BLOCKDEV --flushbufs /dev/\${device}
               echo 1 | $SUDO $TEE /sys/block/\${device}/device/delete
           fi
       done
-
-      # wait for auto remove multipath
-      EXISTS=1
-      COUNTER=1
-      while [ "\${SLAVES}" ] && [ \$EXISTS -gt 0 ] && [ \$COUNTER -le 30 ]; do
-          sleep 1
-          EXISTS=\$($SUDO $MULTIPATH -ll 3$WWN | head -c1 | wc -c)
-          COUNTER=\$((\$COUNTER + 1))
-      done
-
-      if [[ \$EXISTS -gt 0 ]]; then
-          # Wait for releasing device
-          OPEN_COUNT=1
-          while [ \$OPEN_COUNT -gt 0 ]; do
-              sleep 1
-              OPEN_COUNT=\$($SUDO $DMSETUP info 3$WWN | grep -P "Open\scount:" | grep -oP "[0-9]+")
-          done
-
-          $(multipath_flush "3$WWN")
-      fi
 EOF
 }
 
