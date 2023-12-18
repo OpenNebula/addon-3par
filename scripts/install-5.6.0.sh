@@ -25,20 +25,20 @@ for MAD in datastore tm hooks; do
     M_DIR="${ONE_VAR}/remotes/${MAD}"
     echo "*** Installing ${M_DIR}/3par ..."
     mkdir -pv "${M_DIR}/3par"
-    cp $CP_ARG ${MAD}/3par/* "${M_DIR}/3par/"
+    /usr/bin/cp $CP_ARG ${MAD}/3par/* "${M_DIR}/3par/"
     chown -R "$ONE_USER" "${M_DIR}/3par"
     chmod u+x -R "${M_DIR}/3par"
 done
 
 echo "*** Copy VM snapshot scripts to ${ONE_VAR}/remotes/vmm/kvm/ ..."
-cp $CP_ARG "$CWD/vmm/kvm/"snapshot_*-3par "${ONE_VAR}/remotes/vmm/kvm/"
+/usr/bin/cp $CP_ARG "$CWD/vmm/kvm/"snapshot_*-3par "${ONE_VAR}/remotes/vmm/kvm/"
 chmod a+x "${ONE_VAR}/remotes/vmm/kvm/"snapshot_*-3par
 chown oneadmin: "${ONE_VAR}/remotes/vmm/kvm/"snapshot_*-3par
 
 echo "*** Copy VMM deploy and attach_disk scripts to ${ONE_VAR}/remotes/vmm/kvm/ ..."
-cp $CP_ARG "$CWD/vmm/kvm/deploy" "${ONE_VAR}/remotes/vmm/kvm/"
-cp $CP_ARG "$CWD/vmm/kvm/attach_disk" "${ONE_VAR}/remotes/vmm/kvm/"
-cp $CP_ARG "$CWD/vmm/kvm/restore" "${ONE_VAR}/remotes/vmm/kvm/"
+/usr/bin/cp -fv "$CWD/vmm/kvm/deploy" "${ONE_VAR}/remotes/vmm/kvm/"
+/usr/bin/cp -fv "$CWD/vmm/kvm/attach_disk" "${ONE_VAR}/remotes/vmm/kvm/"
+/usr/bin/cp -fv "$CWD/vmm/kvm/restore" "${ONE_VAR}/remotes/vmm/kvm/"
 chmod a+x "${ONE_VAR}/remotes/vmm/kvm/deploy"
 chmod a+x "${ONE_VAR}/remotes/vmm/kvm/attach_disk"
 chmod a+x "${ONE_VAR}/remotes/vmm/kvm/restore"
@@ -47,8 +47,8 @@ chown oneadmin: "${ONE_VAR}/remotes/vmm/kvm/attach_disk"
 chown oneadmin: "${ONE_VAR}/remotes/vmm/kvm/restore"
 
 echo "*** Copy checkMultipath.py and dmmp.py scripts to ${ONE_VAR}/remotes/vmm/ ..."
-cp $CP_ARG "$CWD/vmm/checkMultipath.py" "${ONE_VAR}/remotes/vmm/"
-cp $CP_ARG "$CWD/vmm/dmmp.py" "${ONE_VAR}/remotes/vmm/"
+/usr/bin/cp $CP_ARG "$CWD/vmm/checkMultipath.py" "${ONE_VAR}/remotes/vmm/"
+/usr/bin/cp $CP_ARG "$CWD/vmm/dmmp.py" "${ONE_VAR}/remotes/vmm/"
 chown oneadmin: "${ONE_VAR}/remotes/vmm/checkMultipath.py"
 chown oneadmin: "${ONE_VAR}/remotes/vmm/dmmp.py"
 
@@ -57,7 +57,7 @@ if grep -q -i 3par /etc/one/oned.conf >/dev/null 2>&1; then
     echo "*** 3PAR is already enabled in /etc/one/oned.conf"
 else
     echo "*** enabling 3PAR plugin in /etc/one/oned.conf"
-    cp $CP_ARG /etc/one/oned.conf /etc/one/oned.conf.bak;
+    /usr/bin/cp $CP_ARG /etc/one/oned.conf /etc/one/oned.conf.bak;
 
     sed -i -e 's|ceph,dev|ceph,dev,3par|g' /etc/one/oned.conf
 
@@ -97,7 +97,7 @@ if [ -f "${ONE_VAR}/remotes/etc/datastore/3par/3par.conf" ]; then
     echo "(found)"
 else
     mkdir "${ONE_VAR}/remotes/etc/datastore/3par"
-    cp $CP_ARG etc/datastore/3par/3par.conf "${ONE_VAR}/remotes/etc/datastore/3par/3par.conf"
+    /usr/bin/cp $CP_ARG etc/datastore/3par/3par.conf "${ONE_VAR}/remotes/etc/datastore/3par/3par.conf"
 fi
 
 echo "*** Please sync hosts (onehost sync --force)"
