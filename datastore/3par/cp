@@ -40,8 +40,13 @@ source ${DRIVER_PATH}/../../etc/datastore/3par/3par.conf
 
 # -------- Get mkfs and datastore arguments from OpenNebula core ------------
 
-DRV_ACTION=$1
-ID=$2
+if [ -n "$2" ]; then
+    DRV_ACTION="$1"
+    ID="$2"
+else
+    DRV_ACTION="$(cat)"
+    ID="$1"
+fi
 
 export DRV_ACTION
 
