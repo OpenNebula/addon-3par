@@ -1302,6 +1302,8 @@ if args.secure:
 
 cl = client.HPE3ParClient(args.api, False, secure, None, True)
 cl.setSSHOptions(args.ip, args.username, args.password)
+# get version, so lib can check if system is Primera or 3PAR
+cl.getWsApiVersion()
 
 try:
     cl.login(args.username, args.password)
