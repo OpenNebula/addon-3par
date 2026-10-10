@@ -114,19 +114,37 @@ fi
 [ "$SRC_HOST_3PAR" != "1" ] && exit 0
 
 #-------------------------------------------------------------------------------
-# Unmap image from host
+# Get source host STATE
 #-------------------------------------------------------------------------------
 
-FLUSH_CMD=$(cat <<EOF
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
+
+unset i j XPATH_ELEMENTS
+
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onehost show -x $SRC_HOST | $XPATH \
+                    /HOST/STATE)
+
+SRC_HOST_STATE="${XPATH_ELEMENTS[j++]}"
+
+# state 8 == offline, in that case we do not do unmap
+if [ "$SRC_HOST_STATE" != "8" ]; then
+    #-------------------------------------------------------------------------------
+    # Unmap image from host
+    #-------------------------------------------------------------------------------
+
+    FLUSH_CMD=$(cat <<EOF
     set -e
     $(remove_lun "$WWN")
 EOF
 )
 
-log "Unmapping $DST from $SRC_HOST"
+    log "Unmapping $DST from $SRC_HOST"
 
-ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
-    "Error flushing out mapping"
+    ssh_exec_and_log "$SRC_HOST" "$FLUSH_CMD" \
+        "Error flushing out mapping"
+fi
 
 python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME -p $PASSWORD \
                                                         -n $NAME -hs $SRC_HOST

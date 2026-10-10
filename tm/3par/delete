@@ -55,35 +55,53 @@ DST_PATH=`arg_path $DST`
 DST_HOST=`arg_host $DST`
 
 #-------------------------------------------------------------------------------
-# Return if deleting a disk, we will delete them when removing the
-# remote_system_ds directory for the VM (remotely)
+# Get dest host STATE
 #-------------------------------------------------------------------------------
 
-log "Deleting $DST_PATH"
+XPATH="${DRIVER_PATH}/../../datastore/xpath.rb --stdin"
 
-delete_file=$(cat <<EOF
-[ -e "$DST_PATH" ] || exit 0
+unset i j XPATH_ELEMENTS
 
-times=10
-function="rm -rf $DST_PATH"
+while IFS= read -r -d '' element; do
+    XPATH_ELEMENTS[i++]="$element"
+done < <(onehost show -x $DST_HOST | $XPATH \
+                    /HOST/STATE)
 
-count=1
+DST_HOST_STATE="${XPATH_ELEMENTS[j++]}"
 
-ret=\$(\$function)
-error=\$?
+# state 8 == offline, in that case we do not do unmap
+if [ "$DST_HOST_STATE" != "8" ]; then
+    #-------------------------------------------------------------------------------
+    # Return if deleting a disk, we will delete them when removing the
+    # remote_system_ds directory for the VM (remotely)
+    #-------------------------------------------------------------------------------
 
-while [ \$count -lt \$times -a "\$error" != "0" ]; do
-    sleep 1
-    count=\$(( \$count + 1 ))
+    log "Deleting $DST_PATH"
+
+    delete_file=$(cat <<EOF
+    [ -e "$DST_PATH" ] || exit 0
+
+    times=10
+    function="rm -rf $DST_PATH"
+
+    count=1
+
     ret=\$(\$function)
     error=\$?
-done
 
-[ "x\$error" = "x0" ]
+    while [ \$count -lt \$times -a "\$error" != "0" ]; do
+        sleep 1
+        count=\$(( \$count + 1 ))
+        ret=\$(\$function)
+        error=\$?
+    done
+
+    [ "x\$error" = "x0" ]
 EOF
 )
 
-ssh_exec_and_log $DST_HOST "$delete_file" "Error deleting $DST_PATH"
+    ssh_exec_and_log $DST_HOST "$delete_file" "Error deleting $DST_PATH"
+fi
 
 #-------------------------------------------------------------------------------
 # Get image information
@@ -180,21 +198,25 @@ fi
 
 # if compute node, flush and unmap drive
 if [ "$DST_HOST_3PAR" == "1" ]; then
-  #-------------------------------------------------------------------------------
-  # Unmap non-persistent image from host
-  #-------------------------------------------------------------------------------
-  
-  FLUSH_CMD=$(cat <<EOF
-      set -e
-      $(remove_lun "$WWN")
-      rm -f "$DST_PATH"
+
+  # state 8 == offline, in that case we do not do unmap
+  if [ "$DST_HOST_STATE" != "8" ]; then
+      #-------------------------------------------------------------------------------
+      # Unmap non-persistent image from host
+      #-------------------------------------------------------------------------------
+
+      FLUSH_CMD=$(cat <<EOF
+          set -e
+          $(remove_lun "$WWN")
+          rm -f "$DST_PATH"
 EOF
 )
-  
-  log "Unmapping $NAME_WWN from $DST_HOST"
-  
-  ssh_exec_and_log "$DST_HOST" "$FLUSH_CMD" \
-      "Error flushing out mapping"
+
+      log "Unmapping $NAME_WWN from $DST_HOST"
+
+      ssh_exec_and_log "$DST_HOST" "$FLUSH_CMD" \
+          "Error flushing out mapping"
+  fi
   
   python ${DRIVER_PATH}/../../datastore/3par/3par.py unexportVV -a $API_ENDPOINT -i $IP -s $SECURE -u $USERNAME \
                                           -p $PASSWORD -n $NAME -hs $DST_HOST
